@@ -1047,7 +1047,7 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
                     style: const TextStyle(color: Colors.white, fontSize: 12),
                     decoration: InputDecoration(
                       hintText: isYtm
-                          ? 'ค้นหาเพลง, ศิลปิน, อัลบั้ม บน YouTube Music...'
+                          ? 'ค้นหาเพลง, Remix, DJ บน YouTube Music...'
                           : 'ค้นหาคลิป, เพลงแดนซ์, DJ Mix, MV บน YouTube...',
                       hintStyle: TextStyle(color: Colors.grey[500], fontSize: 11),
                       prefixIcon: Padding(
@@ -1176,10 +1176,6 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
                 _buildSearchFilterChip('videos', 'วิดีโอ', Icons.smart_display, isYtm),
                 const SizedBox(width: 5),
                 _buildSearchFilterChip('playlists', 'เพลย์ลิสต์', Icons.queue_music, isYtm),
-                const SizedBox(width: 5),
-                _buildSearchFilterChip('channels', 'ศิลปิน / ช่อง', Icons.account_circle, isYtm),
-                const SizedBox(width: 5),
-                _buildSearchFilterChip('albums', 'อัลบั้ม', Icons.album, isYtm),
               ],
             ),
           ),
@@ -2032,56 +2028,6 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
                 itemCount: _matchingPlaylists.length,
                 separatorBuilder: (_, _) => const SizedBox(width: 8),
                 itemBuilder: (context, index) => _buildPlaylistCardHorizontal(_matchingPlaylists[index]),
-              ),
-            ),
-          ),
-        ],
-
-        // 3. Albums (if any)
-        if (_matchingAlbums.isNotEmpty) ...[
-          const SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(12, 16, 12, 6),
-              child: Text(
-                'อัลบั้มที่ตรงกับการค้นหา',
-                style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ),
-          SliverToBoxAdapter(
-            child: SizedBox(
-              height: 110,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                itemCount: _matchingAlbums.length,
-                separatorBuilder: (_, _) => const SizedBox(width: 8),
-                itemBuilder: (context, index) => _buildPlaylistCardHorizontal(_matchingAlbums[index]),
-              ),
-            ),
-          ),
-        ],
-
-        // 4. Channels / Artists (if any) placed below
-        if (_matchingChannels.isNotEmpty) ...[
-          const SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(12, 16, 12, 6),
-              child: Text(
-                'ช่อง / ศิลปินที่ตรงกับการค้นหา • คลิกเพื่อดูผลงานและเพลงทั้งหมด',
-                style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ),
-          SliverToBoxAdapter(
-            child: SizedBox(
-              height: 125,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                itemCount: _matchingChannels.length,
-                separatorBuilder: (_, _) => const SizedBox(width: 8),
-                itemBuilder: (context, index) => _buildChannelCardHorizontal(_matchingChannels[index]),
               ),
             ),
           ),

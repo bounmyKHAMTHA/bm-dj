@@ -384,26 +384,6 @@ class StreamSearchView(APIView):
                                 'thumbnail': thumbs[-1].get('url') if thumbs else '',
                                 'source': 'ytmusic',
                             })
-                        elif rtype in ['artist', 'channel'] and len(matching_channels) < 4:
-                            c_id = item.get('browseId', '')
-                            thumbs = item.get('thumbnails', [])
-                            matching_channels.append({
-                                'channel_id': c_id,
-                                'title': item.get('artist') or item.get('name') or item.get('title', 'Artist'),
-                                'subscribers': item.get('subscribers') or '',
-                                'thumbnail': thumbs[-1].get('url') if thumbs else '',
-                                'source': 'ytmusic',
-                            })
-                        elif rtype == 'album' and len(matching_albums) < 4:
-                            browse_id = item.get('browseId', '')
-                            thumbs = item.get('thumbnails', [])
-                            matching_albums.append({
-                                'playlist_id': browse_id,
-                                'title': item.get('title', 'Album'),
-                                'author': item.get('artist') or 'Album',
-                                'thumbnail': thumbs[-1].get('url') if thumbs else '',
-                                'source': 'ytmusic',
-                            })
 
                     # Also fetch direct song matches to ensure all popular titles and remixes are available
                     if len(tracks) < 20:
