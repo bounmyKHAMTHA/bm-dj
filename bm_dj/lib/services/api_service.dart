@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import '../models/track.dart';
 
 class ApiService {
@@ -47,15 +48,33 @@ class ApiService {
     return map;
   }
 
+  static final YoutubeExplode _ytExplode = YoutubeExplode();
+
+  static String extractVideoId(String videoIdOrUrl) {
+    final v = videoIdOrUrl.trim();
+    final reg = RegExp(r'(?:v=|youtu\.be/|shorts/)([a-zA-Z0-9_-]{11})');
+    final match = reg.firstMatch(v);
+    if (match != null) {
+      return match.group(1)!;
+    }
+    if (v.length == 11 && !v.contains('/') && !v.contains('.')) {
+      return v;
+    }
+    return v;
+  }
+
   /// Resolves video_id or query/URL to track info with direct stream URL
   static Future<Track?> resolveStream(String videoIdOrUrl) async {
     if (isTestMode) return null;
+    final actualId = extractVideoId(videoIdOrUrl);
+
+    // 1. Try Backend Stream Resolver (fast timeout)
     try {
       final uri = Uri.parse('$baseUrl/api/v1/stream/resolve').replace(
-        queryParameters: {'video_id': videoIdOrUrl},
+        queryParameters: {'video_id': actualId.isNotEmpty ? actualId : videoIdOrUrl},
       );
 
-      final response = await http.get(uri, headers: headers).timeout(const Duration(seconds: 25));
+      final response = await http.get(uri, headers: headers).timeout(const Duration(seconds: 6));
       if (response.statusCode == 200) {
         final body = jsonDecode(response.body);
         if (body['status'] == 'success' && body['data'] != null) {
@@ -67,11 +86,35 @@ class ApiService {
           return Track.fromJson(data);
         }
       } else {
-        debugPrint('Failed to resolve stream: ${response.statusCode} - ${response.body}');
+        debugPrint('Backend stream resolve status ${response.statusCode}, activating local fallback');
       }
     } catch (e) {
-      debugPrint('Error resolving stream: $e');
+      debugPrint('Backend stream resolve error: $e, activating local fallback');
     }
+
+    // 2. High-Performance Client Fallback (Direct via YoutubeExplode)
+    // Runs on the user's connection, bypassing datacenter IP bans and cloud server issues!
+    if (actualId.isNotEmpty) {
+      try {
+        final manifest = await _ytExplode.videos.streamsClient.getManifest(actualId);
+        final audioStream = manifest.audioOnly.withHighestBitrate();
+        final sUrl = audioStream.url.toString();
+        if (sUrl.isNotEmpty) {
+          debugPrint('[LOCAL_RESOLVER] Successfully resolved audio stream on client for: $actualId');
+          return Track(
+            videoId: actualId,
+            title: '',
+            artist: '',
+            durationSeconds: 0,
+            streamUrl: sUrl,
+            source: 'youtube',
+          );
+        }
+      } catch (e) {
+        debugPrint('[LOCAL_RESOLVER] Local stream resolution failed: $e');
+      }
+    }
+
     return null;
   }
 
