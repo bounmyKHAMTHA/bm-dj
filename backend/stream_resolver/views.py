@@ -91,7 +91,11 @@ def extract_audio_stream_data(video_id: str):
         'force_generic_extractor': False,
         'nocheckcertificate': True,
         'noplaylist': True,
-        'socket_timeout': 10,
+        'socket_timeout': 15,
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+            'Accept-Language': 'en-US,en;q=0.9',
+        },
     }
 
     try:
