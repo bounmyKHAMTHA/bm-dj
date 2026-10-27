@@ -128,13 +128,13 @@ class _DJConsoleScreenState extends State<DJConsoleScreen> {
               decoration: InputDecoration(
                 filled: true,
                 fillColor: const Color(0xFF1A1F2C),
-                hintText: 'http://127.0.0.1:8000',
+                hintText: 'http://139.180.216.110:8888',
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
               ),
             ),
             const SizedBox(height: 10),
             Text(
-              '• Desktop: http://127.0.0.1:8000\n• Android Emulator: http://10.0.2.2:8000\n• Physical Mobile: http://<YOUR_PC_IP>:8000',
+              '• Remote VPS: http://139.180.216.110:8888\n• Local Desktop: http://127.0.0.1:8888',
               style: TextStyle(color: Colors.grey[500], fontSize: 11),
             ),
             const SizedBox(height: 14),

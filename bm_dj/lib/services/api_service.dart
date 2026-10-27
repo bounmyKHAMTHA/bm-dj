@@ -12,10 +12,10 @@ class ApiService {
     if (kIsWeb) {
       final host = Uri.base.host;
       if (host.isNotEmpty && host != 'localhost' && host != '127.0.0.1') {
-        return '${Uri.base.scheme}://$host:8000';
+        return '${Uri.base.scheme}://$host:8888';
       }
     }
-    return 'http://139.180.216.110:8000';
+    return 'http://139.180.216.110:8888';
   }
   static set baseUrl(String url) {
     _customBaseUrl = url.trim().replaceAll(RegExp(r'/+$'), '');
