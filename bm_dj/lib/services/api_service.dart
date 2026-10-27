@@ -93,7 +93,13 @@ class ApiService {
         },
       );
 
-      final response = await http.get(uri, headers: headers).timeout(const Duration(seconds: 25));
+      var response = await http.get(uri, headers: headers).timeout(const Duration(seconds: 25));
+      if (response.statusCode == 401 && authToken != null) {
+        // Token was rejected, clear it and retry as guest
+        authToken = null;
+        SharedPreferences.getInstance().then((p) => p.remove('bm_dj_token'));
+        response = await http.get(uri, headers: headers).timeout(const Duration(seconds: 25));
+      }
       if (response.statusCode == 200) {
         final body = jsonDecode(response.body);
         final rawTracks = (body['data'] is List) ? (body['data'] as List) : [];
@@ -204,7 +210,12 @@ class ApiService {
         queryParameters: {'category': category, 'source': source},
       );
 
-      final response = await http.get(uri, headers: headers).timeout(const Duration(seconds: 20));
+      var response = await http.get(uri, headers: headers).timeout(const Duration(seconds: 20));
+      if (response.statusCode == 401 && authToken != null) {
+        authToken = null;
+        SharedPreferences.getInstance().then((p) => p.remove('bm_dj_token'));
+        response = await http.get(uri, headers: headers).timeout(const Duration(seconds: 20));
+      }
       if (response.statusCode == 200) {
         final body = jsonDecode(response.body);
         final rawTracks = (body['tracks'] is List) ? (body['tracks'] as List) : [];

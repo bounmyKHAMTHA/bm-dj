@@ -226,6 +226,10 @@ class AuthService extends ChangeNotifier {
           _currentUser = UserAccount.fromJson(body, ApiService.authToken!);
           notifyListeners();
         }
+      } else if (res.statusCode == 401) {
+        // Token is invalid/expired on this backend, clear it so guest requests don't get 401
+        debugPrint('[AUTH] Stored token is invalid or expired. Clearing auth token.');
+        await logout();
       }
     } catch (e) {
       debugPrint('[AUTH] Fetch user failed: $e');
