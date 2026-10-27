@@ -1,0 +1,56 @@
+from django.urls import path
+from .views import (
+    StreamResolverView,
+    StreamSearchView,
+    StreamExploreView,
+    StreamPlaylistView,
+    StreamRelatedView,
+    StreamChannelView,
+    AuthRegisterView,
+    AuthLoginView,
+    AuthMeView,
+    GoogleAuthInitView,
+    GoogleAuthCheckView,
+    GoogleAuthCallbackView,
+    UserMemoriesView,
+    UserSearchHistoryView,
+    UserLikedTracksView,
+    UserQueueSyncView,
+    YTMusicConnectView,
+    YTMusicDisconnectView,
+    YTMusicLibraryView,
+    YTMusicPlaylistDetailView,
+)
+
+urlpatterns = [
+    # Audio & Video Stream Resolution, Search & Exploration
+    path('stream/resolve', StreamResolverView.as_view(), name='stream-resolve'),
+    path('stream/search', StreamSearchView.as_view(), name='stream-search'),
+    path('stream/explore', StreamExploreView.as_view(), name='stream-explore'),
+    path('stream/playlist', StreamPlaylistView.as_view(), name='stream-playlist'),
+    path('stream/related', StreamRelatedView.as_view(), name='stream-related'),
+    path('stream/channel', StreamChannelView.as_view(), name='stream-channel'),
+
+    # BM DJ User Account Authentication
+    path('auth/register', AuthRegisterView.as_view(), name='auth-register'),
+    path('auth/login', AuthLoginView.as_view(), name='auth-login'),
+    path('auth/me', AuthMeView.as_view(), name='auth-me'),
+
+    # Google OAuth 2.0 Sign-In & YouTube Account Sync
+    path('auth/google/login', GoogleAuthInitView.as_view(), name='auth-google-login'),
+    path('auth/google/url', GoogleAuthInitView.as_view(), name='auth-google-url'),
+    path('auth/google/check', GoogleAuthCheckView.as_view(), name='auth-google-check'),
+    path('auth/google/callback', GoogleAuthCallbackView.as_view(), name='auth-google-callback'),
+
+    # User Memories Persistence (History, Liked, Queue, Settings)
+    path('user/memories', UserMemoriesView.as_view(), name='user-memories'),
+    path('user/history', UserSearchHistoryView.as_view(), name='user-history'),
+    path('user/liked', UserLikedTracksView.as_view(), name='user-liked'),
+    path('user/queue', UserQueueSyncView.as_view(), name='user-queue'),
+
+    # YouTube Music Integration
+    path('user/ytmusic/connect', YTMusicConnectView.as_view(), name='ytm-connect'),
+    path('user/ytmusic/disconnect', YTMusicDisconnectView.as_view(), name='ytm-disconnect'),
+    path('user/ytmusic/library', YTMusicLibraryView.as_view(), name='ytm-library'),
+    path('user/ytmusic/playlist/<str:playlist_id>', YTMusicPlaylistDetailView.as_view(), name='ytm-playlist-detail'),
+]
