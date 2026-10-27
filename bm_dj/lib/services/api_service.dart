@@ -128,13 +128,52 @@ class ApiService {
     if (isTestMode) return null;
     final actualId = extractVideoId(videoIdOrUrl);
 
-    // 1. Try Backend Stream Resolver (fast timeout)
+    // Helper: Local direct client resolution via YoutubeExplode (Works natively on Windows/Mobile with 0ms server dependency)
+    Future<Track?> resolveDirectlyOnClient() async {
+      if (!kIsWeb && actualId.isNotEmpty) {
+        try {
+          final manifest = await _ytExplode.videos.streamsClient.getManifest(actualId);
+          // Prefer MP4 / AAC (mp4a) audio format because Windows Media Foundation natively
+          // supports MP4/AAC without extra codec packs. WebM/Opus causes Item error on Windows!
+          final mp4Streams = manifest.audioOnly.where(
+            (s) => s.container.name.toLowerCase() == 'mp4' || s.audioCodec.toLowerCase().contains('mp4a'),
+          );
+          final audioStream = mp4Streams.isNotEmpty
+              ? mp4Streams.withHighestBitrate()
+              : manifest.audioOnly.withHighestBitrate();
+          final sUrl = audioStream.url.toString();
+          if (sUrl.isNotEmpty) {
+            debugPrint('[CLIENT_RESOLVER] Successfully resolved MP4 AAC audio stream directly on client: $actualId');
+            return Track(
+              videoId: actualId,
+              title: '',
+              artist: '',
+              durationSeconds: 0,
+              streamUrl: sUrl,
+              source: 'youtube',
+            );
+          }
+        } catch (e) {
+          debugPrint('[CLIENT_RESOLVER] Client resolution failed: $e');
+        }
+      }
+      return null;
+    }
+
+    // 1. If computer is NOT running localhost and on Native (Windows/Mobile):
+    // Directly resolve on the client device! No need to wait for or depend on any local server!
+    if (!kIsWeb && !isLocalhostActive) {
+      final clientTrack = await resolveDirectlyOnClient();
+      if (clientTrack != null) return clientTrack;
+    }
+
+    // 2. Try Backend Stream Resolver (Localhost or VPS proxy)
     try {
       final uri = Uri.parse('$baseUrl/api/v1/stream/resolve').replace(
         queryParameters: {'video_id': actualId.isNotEmpty ? actualId : videoIdOrUrl},
       );
 
-      final response = await http.get(uri, headers: headers).timeout(const Duration(seconds: 6));
+      final response = await http.get(uri, headers: headers).timeout(const Duration(seconds: 5));
       if (response.statusCode == 200) {
         final body = jsonDecode(response.body);
         if (body['status'] == 'success' && body['data'] != null) {
@@ -146,43 +185,14 @@ class ApiService {
           return Track.fromJson(data);
         }
       } else {
-        debugPrint('Backend stream resolve status ${response.statusCode}, activating local fallback');
+        debugPrint('Backend stream resolve status ${response.statusCode}, activating fallback');
       }
     } catch (e) {
-      debugPrint('Backend stream resolve error: $e, activating local fallback');
+      debugPrint('Backend stream resolve error: $e, activating fallback');
     }
 
-    // 2. High-Performance Client Fallback (Direct via YoutubeExplode)
-    // Runs on the user's connection, bypassing datacenter IP bans and cloud server issues!
-    if (!kIsWeb && actualId.isNotEmpty) {
-      try {
-        final manifest = await _ytExplode.videos.streamsClient.getManifest(actualId);
-        // Prefer MP4 / AAC (mp4a) audio format because Windows Media Foundation (WinRT MediaPlayer)
-        // natively supports MP4/AAC without extra codec packs. WebM/Opus causes Item error on Windows!
-        final mp4Streams = manifest.audioOnly.where(
-          (s) => s.container.name.toLowerCase() == 'mp4' || s.audioCodec.toLowerCase().contains('mp4a'),
-        );
-        final audioStream = mp4Streams.isNotEmpty
-            ? mp4Streams.withHighestBitrate()
-            : manifest.audioOnly.withHighestBitrate();
-        final sUrl = audioStream.url.toString();
-        if (sUrl.isNotEmpty) {
-          debugPrint('[LOCAL_RESOLVER] Successfully resolved MP4 AAC audio stream on client for: $actualId');
-          return Track(
-            videoId: actualId,
-            title: '',
-            artist: '',
-            durationSeconds: 0,
-            streamUrl: sUrl,
-            source: 'youtube',
-          );
-        }
-      } catch (e) {
-        debugPrint('[LOCAL_RESOLVER] Local stream resolution failed: $e');
-      }
-    }
-
-    return null;
+    // 3. Final Fallback via Client Resolver
+    return await resolveDirectlyOnClient();
   }
 
   /// Search YouTube or YouTube Music for tracks, matching playlists, channels, and albums

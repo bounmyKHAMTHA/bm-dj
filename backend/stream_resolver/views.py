@@ -83,9 +83,14 @@ def extract_audio_stream_data(video_id: str):
     if cached and cached.get('expiry', 0) > now:
         return cached
 
+    # Support cookies.txt for datacenter VPS bypass
+    cookie_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'cookies.txt')
+    if not os.path.exists(cookie_path):
+        cookie_path = '/var/www/bm-dj/backend/cookies.txt'
+
     target_url = f"https://www.youtube.com/watch?v={video_id}"
     ydl_opts = {
-        'format': '140/251/bestaudio[ext=m4a]/bestaudio/best',
+        'format': '140/bestaudio[ext=m4a]/bestaudio/best',
         'quiet': True,
         'skip_download': True,
         'force_generic_extractor': False,
@@ -102,6 +107,8 @@ def extract_audio_stream_data(video_id: str):
             'Accept-Language': 'en-US,en;q=0.9',
         },
     }
+    if os.path.exists(cookie_path):
+        ydl_opts['cookiefile'] = cookie_path
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
