@@ -56,7 +56,14 @@ class BackendProcessManager {
         mode: ProcessStartMode.detached,
       );
 
-      debugPrint('[BACKEND_MGR] Backend process started with PID: ${_backendProcess?.pid}');
+      debugPrint('[BACKEND_MGR] Backend process started with PID: ${_backendProcess?.pid}, waiting for it to become ready...');
+      for (int i = 0; i < 20; i++) {
+        await Future.delayed(const Duration(milliseconds: 250));
+        if (await _isPortAlive('http://127.0.0.1:8000')) {
+          debugPrint('[BACKEND_MGR] Backend server is online and ready on http://127.0.0.1:8000');
+          break;
+        }
+      }
     } catch (e) {
       debugPrint('[BACKEND_MGR] Failed to launch backend: $e');
     }
