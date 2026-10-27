@@ -129,15 +129,17 @@ def extract_audio_stream_data(video_id: str):
     except Exception as e:
         print(f"[AUDIO_PROXY] yt-dlp extraction error: {e}")
 
-    # Fallback: Invidious public instances
+    # Fallback 1: High-health Invidious instances
     invidious_instances = [
+        'https://yt.chocolatemoo53.com',
         'https://invidious.nerdvpn.de',
         'https://inv.tux.pizza',
         'https://vid.puffyan.us',
+        'https://yewtu.be',
     ]
     for inst in invidious_instances:
         try:
-            res = requests.get(f"{inst}/api/v1/videos/{video_id}", timeout=6)
+            res = requests.get(f"{inst}/api/v1/videos/{video_id}", timeout=5)
             if res.status_code == 200:
                 d = res.json()
                 fmt_streams = d.get('adaptiveFormats', [])
@@ -158,6 +160,33 @@ def extract_audio_stream_data(video_id: str):
                         return data
         except Exception:
             continue
+
+    # Fallback 2: YouTube Music API direct streamingData
+    try:
+        ytm = YTMusic()
+        song_info = ytm.get_song(video_id)
+        if song_info and song_info.get('playabilityStatus', {}).get('status') == 'OK':
+            streaming_data = song_info.get('streamingData', {})
+            adaptive = streaming_data.get('adaptiveFormats', [])
+            audio_formats = [f for f in adaptive if 'audio' in f.get('mimeType', '') and f.get('url')]
+            if audio_formats:
+                best_audio = audio_formats[-1]
+                video_details = song_info.get('videoDetails', {})
+                data = {
+                    'url': best_audio['url'],
+                    'headers': {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+                    },
+                    'title': video_details.get('title', 'Unknown Title'),
+                    'artist': video_details.get('author', 'Unknown Artist'),
+                    'duration': int(video_details.get('lengthSeconds') or 0),
+                    'thumbnail': f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg",
+                    'expiry': now + 1800,
+                }
+                AUDIO_STREAM_CACHE[video_id] = data
+                return data
+    except Exception as e:
+        print(f"[AUDIO_PROXY] YTMusic fallback error: {e}")
 
     return None
 
