@@ -14,7 +14,7 @@ class ApiService {
         return '${Uri.base.scheme}://$host:8000';
       }
     }
-    return 'http://127.0.0.1:8000';
+    return 'http://139.180.216.110:8000';
   }
   static set baseUrl(String url) {
     _customBaseUrl = url.trim().replaceAll(RegExp(r'/+$'), '');
