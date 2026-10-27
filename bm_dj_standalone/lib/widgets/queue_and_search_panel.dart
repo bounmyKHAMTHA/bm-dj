@@ -138,10 +138,10 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
       setState(() {
         final rawCats = data['categories'] as List? ?? [];
         if (rawCats.isNotEmpty) {
-          _categories = rawCats.map((c) => c as Map<String, dynamic>).toList();
+          _categories = rawCats.map((c) => c is Map<String, dynamic> ? c : Map<String, dynamic>.from(c as Map)).toList();
         }
         final rawPlaylists = data['playlists'] as List? ?? [];
-        _explorePlaylists = rawPlaylists.map((p) => p as Map<String, dynamic>).toList();
+        _explorePlaylists = rawPlaylists.map((p) => p is Map<String, dynamic> ? p : Map<String, dynamic>.from(p as Map)).toList();
         _exploreTracks = _parseTracks(data['tracks']);
         _isLoadingExplore = false;
       });
@@ -168,9 +168,10 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
     if (mounted) {
       setState(() {
         final rawPlaylists = data['playlists'] as List? ?? [];
-        _ytmTrendingPlaylists = rawPlaylists.map((p) => p as Map<String, dynamic>).toList();
+        _ytmTrendingPlaylists = rawPlaylists.map((p) => p is Map<String, dynamic> ? p : Map<String, dynamic>.from(p as Map)).toList();
         _ytmChartTracks = _parseTracks(data['tracks']);
-        _ytmUserSections = (data['user_sections'] as Map<String, dynamic>?) ?? {};
+        final rawSections = data['user_sections'];
+        _ytmUserSections = rawSections is Map ? Map<String, dynamic>.from(rawSections) : {};
         _isLoadingYtmHome = false;
       });
     }
@@ -1311,7 +1312,8 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
                 visualDensity: VisualDensity.compact,
                 padding: const EdgeInsets.symmetric(horizontal: 6),
                 onSelected: (val) {
-                  if (val) _loadYouTubeExplore(cat['key']!);
+                  final k = (cat['key'] ?? cat['id'])?.toString();
+                  if (val && k != null && k.isNotEmpty) _loadYouTubeExplore(k);
                 },
               );
             },
