@@ -1,9 +1,7 @@
-asgiref==3.13.0
-Django==6.1.2
-django-cors-headers==4.9.0
-djangorestframework==3.18.3
-sqlparse==0.6.0
-tzdata==2026.5
+Django>=4.2,<5.2
+djangorestframework>=3.14.0
+django-cors-headers>=4.0.0
 yt-dlp>=2026.10.21
 ytmusicapi>=1.12.3
 requests>=2.31.0
+gunicorn>=21.2.0
