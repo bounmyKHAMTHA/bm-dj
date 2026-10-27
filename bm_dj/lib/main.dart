@@ -113,36 +113,100 @@ class _DJConsoleScreenState extends State<DJConsoleScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF161A24),
         title: const Text('Backend Configuration', style: TextStyle(color: Colors.white)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Set Stream Resolver API URL:',
-              style: TextStyle(color: Colors.grey, fontSize: 13),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: controller,
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                filled: true,
-                fillColor: const Color(0xFF1A1F2C),
-                hintText: 'http://139.180.216.110:8888',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              '• Remote VPS: http://139.180.216.110:8888\n• Local Desktop: http://127.0.0.1:8888',
-              style: TextStyle(color: Colors.grey[500], fontSize: 11),
-            ),
-            const SizedBox(height: 14),
-            const Divider(color: Colors.white12),
-            StatefulBuilder(
-              builder: (context, setDialogState) {
-                final manager = Provider.of<DJDeckManager>(context, listen: false);
-                return SwitchListTile(
+        content: StatefulBuilder(
+          builder: (context, setDialogState) {
+            final manager = Provider.of<DJDeckManager>(context, listen: false);
+            final currentUrl = ApiService.baseUrl;
+            final isLocal = ApiService.isLocalhostActive;
+
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isLocal ? Colors.green.withValues(alpha: 0.15) : Colors.cyan.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: isLocal ? Colors.green : const Color(0xFF00F2FE),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        isLocal ? Icons.computer : Icons.cloud,
+                        color: isLocal ? Colors.greenAccent : const Color(0xFF00F2FE),
+                        size: 18,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          isLocal
+                              ? 'เชื่อมต่อ: คอมพิวเตอร์ Localhost (เร็วพิเศษ)'
+                              : 'เชื่อมต่อ: Server จริง (Cloud VPS)',
+                          style: TextStyle(
+                            color: isLocal ? Colors.greenAccent : const Color(0xFF00F2FE),
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Stream Resolver API URL:',
+                  style: TextStyle(color: Colors.grey, fontSize: 13),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: controller,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: const Color(0xFF1A1F2C),
+                    hintText: currentUrl,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: () async {
+                        await ApiService.clearCustomBaseUrl();
+                        controller.text = ApiService.baseUrl;
+                        setDialogState(() {});
+                        _checkBackendStatus();
+                      },
+                      icon: const Icon(Icons.autorenew, size: 14),
+                      label: const Text('ตรวจหาอัตโนมัติ', style: TextStyle(fontSize: 11)),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF00F2FE),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    TextButton(
+                      onPressed: () {
+                        controller.text = ApiService.productionServerUrl;
+                        setDialogState(() {});
+                      },
+                      child: const Text('ใช้ Server จริง', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  '• ระบบจะตรวจหา Localhost อัตโนมัติ หากคอมเปิดเซิร์ฟเวอร์ไว้\n• หากไม่ได้เปิด จะสลับไปใช้ Cloud Server จริงทันที',
+                  style: TextStyle(color: Colors.grey[500], fontSize: 11),
+                ),
+                const SizedBox(height: 14),
+                const Divider(color: Colors.white12),
+                SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   title: const Text('โหมดน้ำหนักเบา (Low-Spec Mode)', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
                   subtitle: const Text('ปิดอนิเมชั่นหนัก ประหยัด CPU/GPU และ RAM สำหรับคอม/มือถือสเปคต่ำ', style: TextStyle(color: Colors.white54, fontSize: 11)),
@@ -152,10 +216,10 @@ class _DJConsoleScreenState extends State<DJConsoleScreen> {
                     manager.toggleLowSpecMode();
                     setDialogState(() {});
                   },
-                );
-              },
-            ),
-          ],
+                ),
+              ],
+            );
+          },
         ),
         actions: [
           TextButton(
@@ -164,7 +228,9 @@ class _DJConsoleScreenState extends State<DJConsoleScreen> {
           ),
           ElevatedButton(
             onPressed: () {
-              ApiService.baseUrl = controller.text.trim();
+              if (controller.text.trim().isNotEmpty) {
+                ApiService.baseUrl = controller.text.trim();
+              }
               Navigator.pop(ctx);
               _checkBackendStatus();
             },

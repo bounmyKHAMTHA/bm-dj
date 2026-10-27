@@ -6,7 +6,18 @@ import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import '../models/track.dart';
 
 class ApiService {
+  static const String productionServerUrl = 'http://139.180.216.110:8888';
+  static const List<String> localhostCandidates = [
+    'http://127.0.0.1:8888',
+    'http://127.0.0.1:8000',
+    'http://localhost:8888',
+    'http://localhost:8000',
+  ];
+
   static String _customBaseUrl = '';
+  static String _activeBaseUrl = productionServerUrl;
+  static bool isLocalhostActive = false;
+
   static String get baseUrl {
     if (_customBaseUrl.isNotEmpty) return _customBaseUrl;
     if (kIsWeb) {
@@ -15,13 +26,60 @@ class ApiService {
         return '${Uri.base.scheme}://$host:8888';
       }
     }
-    return 'http://139.180.216.110:8888';
+    return _activeBaseUrl;
   }
+
   static set baseUrl(String url) {
     _customBaseUrl = url.trim().replaceAll(RegExp(r'/+$'), '');
     SharedPreferences.getInstance().then((prefs) {
       prefs.setString('bm_dj_custom_base_url', _customBaseUrl);
     });
+  }
+
+  static Future<void> clearCustomBaseUrl() async {
+    _customBaseUrl = '';
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('bm_dj_custom_base_url');
+    await autoDetectServer();
+  }
+
+  /// Auto-detects whether localhost is running on the computer.
+  /// If localhost is active, connects to localhost for maximum speed.
+  /// If localhost is not running, seamlessly falls back to the real cloud server!
+  static Future<String> autoDetectServer() async {
+    if (_customBaseUrl.isNotEmpty) {
+      _activeBaseUrl = _customBaseUrl;
+      return _activeBaseUrl;
+    }
+
+    if (kIsWeb) {
+      final host = Uri.base.host;
+      if (host.isNotEmpty && host != 'localhost' && host != '127.0.0.1') {
+        _activeBaseUrl = '${Uri.base.scheme}://$host:8888';
+        return _activeBaseUrl;
+      }
+    }
+
+    // Ping localhost candidates with fast timeout
+    for (final candidate in localhostCandidates) {
+      try {
+        final uri = Uri.parse('$candidate/');
+        final res = await http.get(uri).timeout(const Duration(milliseconds: 600));
+        if (res.statusCode < 500) {
+          debugPrint('[AUTO_DETECT] Localhost backend detected and active: $candidate');
+          _activeBaseUrl = candidate;
+          isLocalhostActive = true;
+          return _activeBaseUrl;
+        }
+      } catch (_) {
+        // Not active on this port
+      }
+    }
+
+    debugPrint('[AUTO_DETECT] Localhost not running. Falling back to real server: $productionServerUrl');
+    _activeBaseUrl = productionServerUrl;
+    isLocalhostActive = false;
+    return _activeBaseUrl;
   }
 
   static Future<void> init() async {
@@ -32,6 +90,8 @@ class ApiService {
         _customBaseUrl = savedUrl.trim().replaceAll(RegExp(r'/+$'), '');
       }
     } catch (_) {}
+
+    await autoDetectServer();
   }
 
   static String? authToken;
