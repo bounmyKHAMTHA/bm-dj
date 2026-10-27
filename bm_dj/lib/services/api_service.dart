@@ -94,13 +94,20 @@ class ApiService {
 
     // 2. High-Performance Client Fallback (Direct via YoutubeExplode)
     // Runs on the user's connection, bypassing datacenter IP bans and cloud server issues!
-    if (actualId.isNotEmpty) {
+    if (!kIsWeb && actualId.isNotEmpty) {
       try {
         final manifest = await _ytExplode.videos.streamsClient.getManifest(actualId);
-        final audioStream = manifest.audioOnly.withHighestBitrate();
+        // Prefer MP4 / AAC (mp4a) audio format because Windows Media Foundation (WinRT MediaPlayer)
+        // natively supports MP4/AAC without extra codec packs. WebM/Opus causes Item error on Windows!
+        final mp4Streams = manifest.audioOnly.where(
+          (s) => s.container.name.toLowerCase() == 'mp4' || s.audioCodec.toLowerCase().contains('mp4a'),
+        );
+        final audioStream = mp4Streams.isNotEmpty
+            ? mp4Streams.withHighestBitrate()
+            : manifest.audioOnly.withHighestBitrate();
         final sUrl = audioStream.url.toString();
         if (sUrl.isNotEmpty) {
-          debugPrint('[LOCAL_RESOLVER] Successfully resolved audio stream on client for: $actualId');
+          debugPrint('[LOCAL_RESOLVER] Successfully resolved MP4 AAC audio stream on client for: $actualId');
           return Track(
             videoId: actualId,
             title: '',
