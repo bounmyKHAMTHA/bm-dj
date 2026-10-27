@@ -93,58 +93,78 @@ class StreamResolverView(APIView):
         # Determine target url
         if video_id.startswith('http://') or video_id.startswith('https://'):
             target_url = video_id
+            m = re.search(r'(?:v=|youtu\.be/)([a-zA-Z0-9_-]{11})', video_id)
+            if m:
+                video_id = m.group(1)
         else:
             target_url = f"https://www.youtube.com/watch?v={video_id}"
 
-        ydl_opts = {
-            'format': 'bestaudio[ext=m4a]/bestaudio/best',
-            'quiet': True,
-            'skip_download': True,
-            'force_generic_extractor': False,
-            'nocheckcertificate': True,
-            'noplaylist': True,
-            'extractor_args': {
-                'youtube': {
-                    'player_client': ['android', 'web', 'tv']
-                }
-            },
-        }
+        # Strategy 1: yt-dlp with multiple client combinations (bypasses VPS datacenter bot check)
+        client_combinations = [
+            ['ios', 'android'],
+            ['mweb', 'android'],
+            ['tv_embedded', 'android'],
+            ['android', 'web', 'tv'],
+        ]
 
-        try:
-            print(f"[RESOLVER] Resolving target: {target_url}")
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(target_url, download=False)
-                
-                if 'entries' in info and info['entries']:
-                    info = info['entries'][0]
+        info = None
+        last_error = None
 
-                formats = info.get('formats', [])
-                stream_url = info.get('url')
-                if not stream_url:
-                    audio_formats = [f for f in formats if f.get('vcodec') == 'none' and f.get('url')]
-                    if audio_formats:
-                        stream_url = audio_formats[-1]['url']
-                    elif formats:
-                        stream_url = formats[-1].get('url')
+        for clients in client_combinations:
+            ydl_opts = {
+                'format': 'bestaudio[ext=m4a]/bestaudio/best',
+                'quiet': True,
+                'skip_download': True,
+                'force_generic_extractor': False,
+                'nocheckcertificate': True,
+                'noplaylist': True,
+                'extractor_args': {
+                    'youtube': {
+                        'player_client': clients
+                    }
+                },
+            }
+            try:
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(target_url, download=False)
+                    if info:
+                        break
+            except Exception as e:
+                last_error = e
+                continue
 
-                video_stream_url = None
-                combined_mp4 = [
-                    f for f in formats 
-                    if f.get('vcodec') != 'none' and f.get('acodec') != 'none' and f.get('url') and f.get('ext') == 'mp4'
-                ]
-                if combined_mp4:
-                    video_stream_url = combined_mp4[-1]['url']
+        if info:
+            if 'entries' in info and info['entries']:
+                info = info['entries'][0]
+
+            formats = info.get('formats', [])
+            stream_url = info.get('url')
+            if not stream_url:
+                audio_formats = [f for f in formats if f.get('vcodec') == 'none' and f.get('url')]
+                if audio_formats:
+                    stream_url = audio_formats[-1]['url']
                 elif formats:
-                    any_video = [f for f in formats if f.get('vcodec') != 'none' and f.get('url')]
-                    if any_video:
-                        video_stream_url = any_video[-1]['url']
+                    stream_url = formats[-1].get('url')
 
-                actual_id = info.get('id', video_id)
-                title = info.get('title', 'Unknown Title')
-                duration = info.get('duration', 0)
-                artist = info.get('artist') or info.get('uploader') or info.get('channel') or 'Unknown Artist'
-                thumbnail = info.get('thumbnail')
+            video_stream_url = None
+            combined_mp4 = [
+                f for f in formats 
+                if f.get('vcodec') != 'none' and f.get('acodec') != 'none' and f.get('url') and f.get('ext') == 'mp4'
+            ]
+            if combined_mp4:
+                video_stream_url = combined_mp4[-1]['url']
+            elif formats:
+                any_video = [f for f in formats if f.get('vcodec') != 'none' and f.get('url')]
+                if any_video:
+                    video_stream_url = any_video[-1]['url']
 
+            actual_id = info.get('id', video_id)
+            title = info.get('title', 'Unknown Title')
+            duration = info.get('duration', 0)
+            artist = info.get('artist') or info.get('uploader') or info.get('channel') or 'Unknown Artist'
+            thumbnail = info.get('thumbnail')
+
+            if stream_url:
                 return Response({
                     'status': 'success',
                     'data': {
@@ -157,8 +177,39 @@ class StreamResolverView(APIView):
                         'thumbnail': thumbnail,
                     }
                 })
-        except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        # Strategy 2: Fallback to public Invidious API if datacenter IP is completely restricted
+        invidious_instances = [
+            'https://invidious.nerdvpn.de',
+            'https://inv.tux.pizza',
+            'https://vid.puffyan.us',
+        ]
+        for inst in invidious_instances:
+            try:
+                res = requests.get(f"{inst}/api/v1/videos/{video_id}", timeout=6)
+                if res.status_code == 200:
+                    data = res.json()
+                    fmt_streams = data.get('adaptiveFormats', [])
+                    audio_fmt = [f for f in fmt_streams if f.get('type', '').startswith('audio/')]
+                    if audio_fmt:
+                        s_url = audio_fmt[-1].get('url')
+                        if s_url:
+                            return Response({
+                                'status': 'success',
+                                'data': {
+                                    'video_id': video_id,
+                                    'title': data.get('title', 'Unknown Title'),
+                                    'artist': data.get('author', 'Unknown Artist'),
+                                    'duration': data.get('lengthSeconds', 0),
+                                    'stream_url': s_url,
+                                    'video_stream_url': None,
+                                    'thumbnail': f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg",
+                                }
+                            })
+            except Exception:
+                continue
+
+        return Response({'error': str(last_error or 'Could not resolve stream')}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class StreamSearchView(APIView):
