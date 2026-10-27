@@ -43,7 +43,12 @@ class ApiService {
       if (response.statusCode == 200) {
         final body = jsonDecode(response.body);
         if (body['status'] == 'success' && body['data'] != null) {
-          return Track.fromJson(body['data']);
+          final data = Map<String, dynamic>.from(body['data']);
+          final sUrl = data['stream_url']?.toString();
+          if (sUrl != null && sUrl.startsWith('/')) {
+            data['stream_url'] = '$baseUrl$sUrl';
+          }
+          return Track.fromJson(data);
         }
       } else {
         debugPrint('Failed to resolve stream: ${response.statusCode} - ${response.body}');

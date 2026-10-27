@@ -7,7 +7,7 @@ import requests
 from django.conf import settings
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
-from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
+from django.http import HttpResponse, HttpResponseRedirect, JsonResponse, StreamingHttpResponse
 from datetime import timedelta
 from django.utils import timezone
 from rest_framework import status
@@ -70,9 +70,168 @@ def save_or_bump_search_history(user, query: str):
         print(f"[SEARCH_HISTORY] Error updating search history: {e}")
 
 
+AUDIO_STREAM_CACHE = {}
+
+def extract_audio_stream_url(video_id: str):
+    """
+    Extracts direct audio stream URL with memory caching (3600s).
+    Uses multi-client yt-dlp strategies and Invidious fallback.
+    """
+    now = time.time()
+    cached = AUDIO_STREAM_CACHE.get(video_id)
+    if cached and cached[1] > now:
+        return cached[0]
+
+    target_url = f"https://www.youtube.com/watch?v={video_id}"
+    client_combinations = [
+        ['ios', 'android'],
+        ['mweb', 'android'],
+        ['tv_embedded', 'android'],
+        ['android', 'web', 'tv'],
+    ]
+
+    for clients in client_combinations:
+        ydl_opts = {
+            'format': 'bestaudio[ext=m4a]/bestaudio/best',
+            'quiet': True,
+            'skip_download': True,
+            'force_generic_extractor': False,
+            'nocheckcertificate': True,
+            'noplaylist': True,
+            'extractor_args': {
+                'youtube': {
+                    'player_client': clients
+                }
+            },
+        }
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(target_url, download=False)
+                if info:
+                    if 'entries' in info and info['entries']:
+                        info = info['entries'][0]
+                    formats = info.get('formats', [])
+                    s_url = info.get('url')
+                    if not s_url:
+                        audio_formats = [f for f in formats if f.get('vcodec') == 'none' and f.get('url')]
+                        if audio_formats:
+                            s_url = audio_formats[-1]['url']
+                        elif formats:
+                            s_url = formats[-1].get('url')
+                    if s_url:
+                        AUDIO_STREAM_CACHE[video_id] = (s_url, now + 3600)
+                        return s_url
+        except Exception:
+            continue
+
+    # Fallback to Invidious
+    invidious_instances = [
+        'https://invidious.nerdvpn.de',
+        'https://inv.tux.pizza',
+        'https://vid.puffyan.us',
+    ]
+    for inst in invidious_instances:
+        try:
+            res = requests.get(f"{inst}/api/v1/videos/{video_id}", timeout=6)
+            if res.status_code == 200:
+                data = res.json()
+                fmt_streams = data.get('adaptiveFormats', [])
+                audio_fmt = [f for f in fmt_streams if f.get('type', '').startswith('audio/')]
+                if audio_fmt:
+                    s_url = audio_fmt[-1].get('url')
+                    if s_url:
+                        AUDIO_STREAM_CACHE[video_id] = (s_url, now + 1800)
+                        return s_url
+        except Exception:
+            continue
+
+    return None
+
+
+class StreamAudioProxyView(APIView):
+    """
+    Proxies audio streams directly to the browser.
+    Eliminates IP mismatch blocks (HTTP 403 Forbidden) and CORS errors on remote cloud deployments.
+    Supports HTTP 206 Partial Content (Range requests) for smooth seeking and playback.
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        video_id = request.GET.get('video_id', '').strip()
+        if not video_id:
+            query = request.GET.get('q', '').strip()
+            video_id = query
+
+        if not video_id:
+            return HttpResponse('Missing video_id parameter', status=400)
+
+        m = re.search(r'(?:v=|youtu\.be/)([a-zA-Z0-9_-]{11})', video_id)
+        if m:
+            video_id = m.group(1)
+
+        raw_url = extract_audio_stream_url(video_id)
+        if not raw_url:
+            return HttpResponse('Unable to extract audio stream for playback', status=502)
+
+        range_header = request.META.get('HTTP_RANGE', '').strip()
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'Accept': '*/*',
+            'Accept-Encoding': 'identity',
+        }
+        if range_header:
+            headers['Range'] = range_header
+
+        try:
+            upstream = requests.get(raw_url, headers=headers, stream=True, timeout=12)
+            # If GoogleVideo returned 403/410, evict cache and retry once
+            if upstream.status_code in (403, 410):
+                AUDIO_STREAM_CACHE.pop(video_id, None)
+                raw_url = extract_audio_stream_url(video_id)
+                if raw_url:
+                    upstream = requests.get(raw_url, headers=headers, stream=True, timeout=12)
+
+            if upstream.status_code not in (200, 206):
+                return HttpResponse(f"Upstream stream error: {upstream.status_code}", status=upstream.status_code)
+
+            content_type = upstream.headers.get('Content-Type', 'audio/mp4')
+
+            def stream_chunks(res, chunk_size=65536):
+                try:
+                    for chunk in res.iter_content(chunk_size=chunk_size):
+                        if chunk:
+                            yield chunk
+                finally:
+                    res.close()
+
+            response = StreamingHttpResponse(
+                stream_chunks(upstream),
+                status=upstream.status_code,
+                content_type=content_type
+            )
+
+            # Essential headers for HTML5 Audio players & Range seeking
+            for h in ['Content-Length', 'Content-Range', 'Accept-Ranges', 'ETag', 'Last-Modified']:
+                if h in upstream.headers:
+                    response[h] = upstream.headers[h]
+
+            if 'Accept-Ranges' not in response:
+                response['Accept-Ranges'] = 'bytes'
+
+            response['Access-Control-Allow-Origin'] = '*'
+            response['Access-Control-Allow-Methods'] = 'GET, HEAD, OPTIONS'
+            response['Access-Control-Allow-Headers'] = 'Range, Content-Range, Content-Type, Accept'
+            response['Access-Control-Expose-Headers'] = 'Content-Range, Content-Length, Accept-Ranges'
+
+            return response
+        except Exception as e:
+            return HttpResponse(f"Proxy streaming failed: {e}", status=500)
+
+
 class StreamResolverView(APIView):
     """
-    Resolves YouTube video_id or URL to direct audio stream URL (m4a/opus/bestaudio).
+    Resolves YouTube video_id or URL to direct audio stream URL (m4a/opus/bestaudio)
+    and provides an audio proxy URL to ensure seamless playback on remote web browsers.
     """
     permission_classes = [AllowAny]
 
@@ -165,6 +324,8 @@ class StreamResolverView(APIView):
             thumbnail = info.get('thumbnail')
 
             if stream_url:
+                AUDIO_STREAM_CACHE[actual_id] = (stream_url, time.time() + 3600)
+                proxy_url = request.build_absolute_uri(f"/api/v1/stream/audio?video_id={actual_id}")
                 return Response({
                     'status': 'success',
                     'data': {
@@ -172,7 +333,8 @@ class StreamResolverView(APIView):
                         'title': title,
                         'artist': artist,
                         'duration': duration,
-                        'stream_url': stream_url,
+                        'stream_url': proxy_url,
+                        'direct_stream_url': stream_url,
                         'video_stream_url': video_stream_url,
                         'thumbnail': thumbnail,
                     }
@@ -194,6 +356,8 @@ class StreamResolverView(APIView):
                     if audio_fmt:
                         s_url = audio_fmt[-1].get('url')
                         if s_url:
+                            AUDIO_STREAM_CACHE[video_id] = (s_url, time.time() + 1800)
+                            proxy_url = request.build_absolute_uri(f"/api/v1/stream/audio?video_id={video_id}")
                             return Response({
                                 'status': 'success',
                                 'data': {
@@ -201,7 +365,8 @@ class StreamResolverView(APIView):
                                     'title': data.get('title', 'Unknown Title'),
                                     'artist': data.get('author', 'Unknown Artist'),
                                     'duration': data.get('lengthSeconds', 0),
-                                    'stream_url': s_url,
+                                    'stream_url': proxy_url,
+                                    'direct_stream_url': s_url,
                                     'video_stream_url': None,
                                     'thumbnail': f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg",
                                 }

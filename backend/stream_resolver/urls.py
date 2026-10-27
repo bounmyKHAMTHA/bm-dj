@@ -1,6 +1,7 @@
 from django.urls import path
 from .views import (
     StreamResolverView,
+    StreamAudioProxyView,
     StreamSearchView,
     StreamExploreView,
     StreamPlaylistView,
@@ -25,6 +26,7 @@ from .views import (
 urlpatterns = [
     # Audio & Video Stream Resolution, Search & Exploration
     path('stream/resolve', StreamResolverView.as_view(), name='stream-resolve'),
+    path('stream/audio', StreamAudioProxyView.as_view(), name='stream-audio'),
     path('stream/search', StreamSearchView.as_view(), name='stream-search'),
     path('stream/explore', StreamExploreView.as_view(), name='stream-explore'),
     path('stream/playlist', StreamPlaylistView.as_view(), name='stream-playlist'),
