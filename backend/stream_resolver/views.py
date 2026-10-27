@@ -72,59 +72,60 @@ def save_or_bump_search_history(user, query: str):
 
 AUDIO_STREAM_CACHE = {}
 
-def extract_audio_stream_url(video_id: str):
+def extract_audio_stream_data(video_id: str):
     """
-    Extracts direct audio stream URL with memory caching (3600s).
-    Uses multi-client yt-dlp strategies and Invidious fallback.
+    Extracts direct audio stream URL and necessary upstream HTTP headers with memory caching (3600s).
+    Prefers format 140 (AAC) or 251 (Opus) to avoid YouTube SABR-only stream drops.
+    Preserves exact upstream http_headers to prevent HTTP 403 Forbidden on playback.
     """
     now = time.time()
     cached = AUDIO_STREAM_CACHE.get(video_id)
-    if cached and cached[1] > now:
-        return cached[0]
+    if cached and cached.get('expiry', 0) > now:
+        return cached
 
     target_url = f"https://www.youtube.com/watch?v={video_id}"
-    client_combinations = [
-        ['ios', 'android'],
-        ['mweb', 'android'],
-        ['tv_embedded', 'android'],
-        ['android', 'web', 'tv'],
-    ]
+    ydl_opts = {
+        'format': '140/251/bestaudio[ext=m4a]/bestaudio/best',
+        'quiet': True,
+        'skip_download': True,
+        'force_generic_extractor': False,
+        'nocheckcertificate': True,
+        'noplaylist': True,
+        'socket_timeout': 10,
+    }
 
-    for clients in client_combinations:
-        ydl_opts = {
-            'format': 'bestaudio[ext=m4a]/bestaudio/best',
-            'quiet': True,
-            'skip_download': True,
-            'force_generic_extractor': False,
-            'nocheckcertificate': True,
-            'noplaylist': True,
-            'extractor_args': {
-                'youtube': {
-                    'player_client': clients
-                }
-            },
-        }
-        try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(target_url, download=False)
-                if info:
-                    if 'entries' in info and info['entries']:
-                        info = info['entries'][0]
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(target_url, download=False)
+            if info:
+                if 'entries' in info and info['entries']:
+                    info = info['entries'][0]
+                s_url = info.get('url')
+                if not s_url:
                     formats = info.get('formats', [])
-                    s_url = info.get('url')
-                    if not s_url:
-                        audio_formats = [f for f in formats if f.get('vcodec') == 'none' and f.get('url')]
-                        if audio_formats:
-                            s_url = audio_formats[-1]['url']
-                        elif formats:
-                            s_url = formats[-1].get('url')
-                    if s_url:
-                        AUDIO_STREAM_CACHE[video_id] = (s_url, now + 3600)
-                        return s_url
-        except Exception:
-            continue
+                    audio_formats = [f for f in formats if f.get('vcodec') == 'none' and f.get('url')]
+                    if audio_formats:
+                        s_url = audio_formats[-1]['url']
+                    elif formats:
+                        s_url = formats[-1].get('url')
 
-    # Fallback to Invidious
+                headers = dict(info.get('http_headers', {}))
+                if s_url:
+                    data = {
+                        'url': s_url,
+                        'headers': headers,
+                        'title': info.get('title', 'Unknown Title'),
+                        'artist': info.get('artist') or info.get('uploader') or info.get('channel') or 'Unknown Artist',
+                        'duration': int(info.get('duration') or 0),
+                        'thumbnail': info.get('thumbnail') or f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg",
+                        'expiry': now + 3600,
+                    }
+                    AUDIO_STREAM_CACHE[video_id] = data
+                    return data
+    except Exception as e:
+        print(f"[AUDIO_PROXY] yt-dlp extraction error: {e}")
+
+    # Fallback: Invidious public instances
     invidious_instances = [
         'https://invidious.nerdvpn.de',
         'https://inv.tux.pizza',
@@ -134,14 +135,23 @@ def extract_audio_stream_url(video_id: str):
         try:
             res = requests.get(f"{inst}/api/v1/videos/{video_id}", timeout=6)
             if res.status_code == 200:
-                data = res.json()
-                fmt_streams = data.get('adaptiveFormats', [])
+                d = res.json()
+                fmt_streams = d.get('adaptiveFormats', [])
                 audio_fmt = [f for f in fmt_streams if f.get('type', '').startswith('audio/')]
                 if audio_fmt:
                     s_url = audio_fmt[-1].get('url')
                     if s_url:
-                        AUDIO_STREAM_CACHE[video_id] = (s_url, now + 1800)
-                        return s_url
+                        data = {
+                            'url': s_url,
+                            'headers': {},
+                            'title': d.get('title', 'Unknown Title'),
+                            'artist': d.get('author', 'Unknown Artist'),
+                            'duration': int(d.get('lengthSeconds') or 0),
+                            'thumbnail': f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg",
+                            'expiry': now + 1800,
+                        }
+                        AUDIO_STREAM_CACHE[video_id] = data
+                        return data
         except Exception:
             continue
 
@@ -169,27 +179,29 @@ class StreamAudioProxyView(APIView):
         if m:
             video_id = m.group(1)
 
-        raw_url = extract_audio_stream_url(video_id)
-        if not raw_url:
+        stream_data = extract_audio_stream_data(video_id)
+        if not stream_data or not stream_data.get('url'):
             return HttpResponse('Unable to extract audio stream for playback', status=502)
 
+        raw_url = stream_data['url']
+        upstream_headers = dict(stream_data.get('headers', {}))
+
         range_header = request.META.get('HTTP_RANGE', '').strip()
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-            'Accept': '*/*',
-            'Accept-Encoding': 'identity',
-        }
         if range_header:
-            headers['Range'] = range_header
+            upstream_headers['Range'] = range_header
 
         try:
-            upstream = requests.get(raw_url, headers=headers, stream=True, timeout=12)
+            upstream = requests.get(raw_url, headers=upstream_headers, stream=True, timeout=15)
             # If GoogleVideo returned 403/410, evict cache and retry once
             if upstream.status_code in (403, 410):
                 AUDIO_STREAM_CACHE.pop(video_id, None)
-                raw_url = extract_audio_stream_url(video_id)
-                if raw_url:
-                    upstream = requests.get(raw_url, headers=headers, stream=True, timeout=12)
+                stream_data = extract_audio_stream_data(video_id)
+                if stream_data and stream_data.get('url'):
+                    raw_url = stream_data['url']
+                    upstream_headers = dict(stream_data.get('headers', {}))
+                    if range_header:
+                        upstream_headers['Range'] = range_header
+                    upstream = requests.get(raw_url, headers=upstream_headers, stream=True, timeout=15)
 
             if upstream.status_code not in (200, 206):
                 return HttpResponse(f"Upstream stream error: {upstream.status_code}", status=upstream.status_code)
@@ -249,132 +261,30 @@ class StreamResolverView(APIView):
 
         video_id = video_id.strip()
 
-        # Determine target url
-        if video_id.startswith('http://') or video_id.startswith('https://'):
-            target_url = video_id
-            m = re.search(r'(?:v=|youtu\.be/)([a-zA-Z0-9_-]{11})', video_id)
-            if m:
-                video_id = m.group(1)
+        m = re.search(r'(?:v=|youtu\.be/)([a-zA-Z0-9_-]{11})', video_id)
+        if m:
+            actual_id = m.group(1)
         else:
-            target_url = f"https://www.youtube.com/watch?v={video_id}"
+            actual_id = video_id
 
-        # Strategy 1: yt-dlp with multiple client combinations (bypasses VPS datacenter bot check)
-        client_combinations = [
-            ['ios', 'android'],
-            ['mweb', 'android'],
-            ['tv_embedded', 'android'],
-            ['android', 'web', 'tv'],
-        ]
+        stream_data = extract_audio_stream_data(actual_id)
+        if stream_data and stream_data.get('url'):
+            proxy_url = request.build_absolute_uri(f"/api/v1/stream/audio?video_id={actual_id}")
+            return Response({
+                'status': 'success',
+                'data': {
+                    'video_id': actual_id,
+                    'title': stream_data.get('title', 'Unknown Title'),
+                    'artist': stream_data.get('artist', 'Unknown Artist'),
+                    'duration': stream_data.get('duration', 0),
+                    'stream_url': proxy_url,
+                    'direct_stream_url': stream_data['url'],
+                    'video_stream_url': None,
+                    'thumbnail': stream_data.get('thumbnail'),
+                }
+            })
 
-        info = None
-        last_error = None
-
-        for clients in client_combinations:
-            ydl_opts = {
-                'format': 'bestaudio[ext=m4a]/bestaudio/best',
-                'quiet': True,
-                'skip_download': True,
-                'force_generic_extractor': False,
-                'nocheckcertificate': True,
-                'noplaylist': True,
-                'extractor_args': {
-                    'youtube': {
-                        'player_client': clients
-                    }
-                },
-            }
-            try:
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    info = ydl.extract_info(target_url, download=False)
-                    if info:
-                        break
-            except Exception as e:
-                last_error = e
-                continue
-
-        if info:
-            if 'entries' in info and info['entries']:
-                info = info['entries'][0]
-
-            formats = info.get('formats', [])
-            stream_url = info.get('url')
-            if not stream_url:
-                audio_formats = [f for f in formats if f.get('vcodec') == 'none' and f.get('url')]
-                if audio_formats:
-                    stream_url = audio_formats[-1]['url']
-                elif formats:
-                    stream_url = formats[-1].get('url')
-
-            video_stream_url = None
-            combined_mp4 = [
-                f for f in formats 
-                if f.get('vcodec') != 'none' and f.get('acodec') != 'none' and f.get('url') and f.get('ext') == 'mp4'
-            ]
-            if combined_mp4:
-                video_stream_url = combined_mp4[-1]['url']
-            elif formats:
-                any_video = [f for f in formats if f.get('vcodec') != 'none' and f.get('url')]
-                if any_video:
-                    video_stream_url = any_video[-1]['url']
-
-            actual_id = info.get('id', video_id)
-            title = info.get('title', 'Unknown Title')
-            duration = info.get('duration', 0)
-            artist = info.get('artist') or info.get('uploader') or info.get('channel') or 'Unknown Artist'
-            thumbnail = info.get('thumbnail')
-
-            if stream_url:
-                AUDIO_STREAM_CACHE[actual_id] = (stream_url, time.time() + 3600)
-                proxy_url = request.build_absolute_uri(f"/api/v1/stream/audio?video_id={actual_id}")
-                return Response({
-                    'status': 'success',
-                    'data': {
-                        'video_id': actual_id,
-                        'title': title,
-                        'artist': artist,
-                        'duration': duration,
-                        'stream_url': proxy_url,
-                        'direct_stream_url': stream_url,
-                        'video_stream_url': video_stream_url,
-                        'thumbnail': thumbnail,
-                    }
-                })
-
-        # Strategy 2: Fallback to public Invidious API if datacenter IP is completely restricted
-        invidious_instances = [
-            'https://invidious.nerdvpn.de',
-            'https://inv.tux.pizza',
-            'https://vid.puffyan.us',
-        ]
-        for inst in invidious_instances:
-            try:
-                res = requests.get(f"{inst}/api/v1/videos/{video_id}", timeout=6)
-                if res.status_code == 200:
-                    data = res.json()
-                    fmt_streams = data.get('adaptiveFormats', [])
-                    audio_fmt = [f for f in fmt_streams if f.get('type', '').startswith('audio/')]
-                    if audio_fmt:
-                        s_url = audio_fmt[-1].get('url')
-                        if s_url:
-                            AUDIO_STREAM_CACHE[video_id] = (s_url, time.time() + 1800)
-                            proxy_url = request.build_absolute_uri(f"/api/v1/stream/audio?video_id={video_id}")
-                            return Response({
-                                'status': 'success',
-                                'data': {
-                                    'video_id': video_id,
-                                    'title': data.get('title', 'Unknown Title'),
-                                    'artist': data.get('author', 'Unknown Artist'),
-                                    'duration': data.get('lengthSeconds', 0),
-                                    'stream_url': proxy_url,
-                                    'direct_stream_url': s_url,
-                                    'video_stream_url': None,
-                                    'thumbnail': f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg",
-                                }
-                            })
-            except Exception:
-                continue
-
-        return Response({'error': str(last_error or 'Could not resolve stream')}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response({'error': 'Could not resolve stream URL for track'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class StreamSearchView(APIView):
