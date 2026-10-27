@@ -1968,82 +1968,7 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
 
     return CustomScrollView(
       slivers: [
-        // Matching Channels / Artists (if any)
-        if (_matchingChannels.isNotEmpty) ...[
-          const SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(12, 10, 12, 6),
-              child: Text(
-                'ช่อง / ศิลปินที่ตรงกับการค้นหา • คลิกเพื่อดูผลงานและเพลงทั้งหมด',
-                style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ),
-          SliverToBoxAdapter(
-            child: SizedBox(
-              height: 125,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                itemCount: _matchingChannels.length,
-                separatorBuilder: (_, _) => const SizedBox(width: 8),
-                itemBuilder: (context, index) => _buildChannelCardHorizontal(_matchingChannels[index]),
-              ),
-            ),
-          ),
-        ],
-
-        // Matching Playlists (if any)
-        if (_matchingPlaylists.isNotEmpty) ...[
-          const SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(12, 10, 12, 6),
-              child: Text(
-                'เพลย์ลิสต์ที่ตรงกับการค้นหา • คลิกเพื่อเปิดเพลงทั้งหมด',
-                style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ),
-          SliverToBoxAdapter(
-            child: SizedBox(
-              height: 110,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                itemCount: _matchingPlaylists.length,
-                separatorBuilder: (_, _) => const SizedBox(width: 8),
-                itemBuilder: (context, index) => _buildPlaylistCardHorizontal(_matchingPlaylists[index]),
-              ),
-            ),
-          ),
-        ],
-
-        // Matching Albums (if any)
-        if (_matchingAlbums.isNotEmpty) ...[
-          const SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(12, 10, 12, 6),
-              child: Text(
-                'อัลบั้มที่ตรงกับการค้นหา',
-                style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ),
-          SliverToBoxAdapter(
-            child: SizedBox(
-              height: 110,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                itemCount: _matchingAlbums.length,
-                separatorBuilder: (_, _) => const SizedBox(width: 8),
-                itemBuilder: (context, index) => _buildPlaylistCardHorizontal(_matchingAlbums[index]),
-              ),
-            ),
-          ),
-        ],
-
-        // Top Result Card (Authentic YouTube Music Style)
+        // 1. Top Result Card (Authentic YouTube Music Style) FIRST!
         if (_searchResults.isNotEmpty) ...[
           SliverToBoxAdapter(
             child: _buildTopResultCard(_searchResults.first),
@@ -2085,6 +2010,81 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
                 ),
               ),
           ],
+        ],
+
+        // 2. Playlists (if any) placed below songs
+        if (_matchingPlaylists.isNotEmpty) ...[
+          const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(12, 16, 12, 6),
+              child: Text(
+                'เพลย์ลิสต์ที่ตรงกับการค้นหา • คลิกเพื่อเปิดเพลงทั้งหมด',
+                style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: SizedBox(
+              height: 110,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                itemCount: _matchingPlaylists.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 8),
+                itemBuilder: (context, index) => _buildPlaylistCardHorizontal(_matchingPlaylists[index]),
+              ),
+            ),
+          ),
+        ],
+
+        // 3. Albums (if any)
+        if (_matchingAlbums.isNotEmpty) ...[
+          const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(12, 16, 12, 6),
+              child: Text(
+                'อัลบั้มที่ตรงกับการค้นหา',
+                style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: SizedBox(
+              height: 110,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                itemCount: _matchingAlbums.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 8),
+                itemBuilder: (context, index) => _buildPlaylistCardHorizontal(_matchingAlbums[index]),
+              ),
+            ),
+          ),
+        ],
+
+        // 4. Channels / Artists (if any) placed below
+        if (_matchingChannels.isNotEmpty) ...[
+          const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(12, 16, 12, 6),
+              child: Text(
+                'ช่อง / ศิลปินที่ตรงกับการค้นหา • คลิกเพื่อดูผลงานและเพลงทั้งหมด',
+                style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: SizedBox(
+              height: 125,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                itemCount: _matchingChannels.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 8),
+                itemBuilder: (context, index) => _buildChannelCardHorizontal(_matchingChannels[index]),
+              ),
+            ),
+          ),
         ],
       ],
     );

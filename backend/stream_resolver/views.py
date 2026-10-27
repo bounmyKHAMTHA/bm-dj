@@ -359,17 +359,19 @@ class StreamSearchView(APIView):
                 ytm = get_ytmusic_client(user_profile=profile)
 
                 if filter_param == 'all':
-                    # Single-call authentic YouTube Music search (includes Top Result, videos, songs)
+                    # Authentic YouTube Music search (Top Result + all matching songs/videos)
                     raw_all = ytm.search(query, filter=None)
-                    for item in raw_all[:limit]:
+                    seen_video_ids = set()
+                    for item in raw_all:
                         rtype = item.get('resultType')
                         if rtype in ['video', 'song']:
                             formatted = format_ytm_track(item, source='ytmusic')
-                            if formatted:
+                            if formatted and formatted['video_id'] not in seen_video_ids:
+                                seen_video_ids.add(formatted['video_id'])
                                 if item.get('category') == 'Top result' or not tracks:
                                     formatted['is_top_result'] = True
                                 tracks.append(formatted)
-                        elif rtype == 'playlist':
+                        elif rtype == 'playlist' and len(matching_playlists) < 6:
                             p_id = item.get('browseId', '')
                             if p_id.startswith('VL'):
                                 p_id = p_id[2:]
@@ -382,7 +384,7 @@ class StreamSearchView(APIView):
                                 'thumbnail': thumbs[-1].get('url') if thumbs else '',
                                 'source': 'ytmusic',
                             })
-                        elif rtype in ['artist', 'channel']:
+                        elif rtype in ['artist', 'channel'] and len(matching_channels) < 4:
                             c_id = item.get('browseId', '')
                             thumbs = item.get('thumbnails', [])
                             matching_channels.append({
@@ -392,7 +394,7 @@ class StreamSearchView(APIView):
                                 'thumbnail': thumbs[-1].get('url') if thumbs else '',
                                 'source': 'ytmusic',
                             })
-                        elif rtype == 'album':
+                        elif rtype == 'album' and len(matching_albums) < 4:
                             browse_id = item.get('browseId', '')
                             thumbs = item.get('thumbnails', [])
                             matching_albums.append({
@@ -402,6 +404,20 @@ class StreamSearchView(APIView):
                                 'thumbnail': thumbs[-1].get('url') if thumbs else '',
                                 'source': 'ytmusic',
                             })
+
+                    # Also fetch direct song matches to ensure all popular titles and remixes are available
+                    if len(tracks) < 20:
+                        try:
+                            raw_songs = ytm.search(query, filter='songs')
+                            for s in raw_songs:
+                                formatted = format_ytm_track(s, source='ytmusic')
+                                if formatted and formatted['video_id'] not in seen_video_ids:
+                                    seen_video_ids.add(formatted['video_id'])
+                                    tracks.append(formatted)
+                                    if len(tracks) >= 28:
+                                        break
+                        except Exception:
+                            pass
                 elif filter_param in ['songs', 'videos']:
                     ytm_filter = 'videos' if filter_param == 'videos' else 'songs'
                     raw_items = ytm.search(query, filter=ytm_filter)
