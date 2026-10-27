@@ -212,10 +212,13 @@ class DJDeckManager extends ChangeNotifier {
   // Pre-load track into the standby deck
   Future<void> preloadStandbyTrack(Track track) async {
     try {
-      if (isDeckAPlaying) {
-        trackB = track;
-      } else {
+      final targetDeck = isDeckAPlaying ? ActiveDeck.deckB : ActiveDeck.deckA;
+      final targetPlayer = (targetDeck == ActiveDeck.deckA) ? deckA : deckB;
+
+      if (targetDeck == ActiveDeck.deckA) {
         trackA = track;
+      } else {
+        trackB = track;
       }
       notifyListeners();
 
@@ -236,24 +239,24 @@ class DJDeckManager extends ChangeNotifier {
             streamUrl: streamUrl,
             videoStreamUrl: resolved.videoStreamUrl ?? track.videoStreamUrl,
           );
-          if (isDeckAPlaying) {
-            trackB = track;
-          } else {
+          if (targetDeck == ActiveDeck.deckA) {
             trackA = track;
+          } else {
+            trackB = track;
           }
         }
         notifyListeners();
       }
 
       if (streamUrl != null && streamUrl.isNotEmpty) {
-        final target = standbyPlayer;
         try {
-          if (target.playing) {
-            await target.stop();
+          if (targetPlayer.playing) {
+            await targetPlayer.stop();
           }
         } catch (_) {}
-        await target.setUrl(streamUrl);
-        await target.setVolume(0.0);
+        await targetPlayer.setUrl(streamUrl);
+        await targetPlayer.seek(Duration.zero);
+        await targetPlayer.setVolume(0.0);
         notifyListeners();
       }
     } catch (e) {
@@ -430,27 +433,21 @@ class DJDeckManager extends ChangeNotifier {
         } catch (_) {}
       }
 
-      // 5. Ensure incoming player has its stream loaded
-      if (incoming.duration == null && targetTrack.streamUrl != null && targetTrack.streamUrl!.isNotEmpty) {
+      // 5. Ensure incoming player has its exact new stream loaded and reset to 0:00
+      if (targetTrack.streamUrl != null && targetTrack.streamUrl!.isNotEmpty) {
         try {
-          await incoming.setUrl(targetTrack.streamUrl!).timeout(const Duration(seconds: 3));
+          // If the player doesn't have the stream or has a completed/different audio
+          await incoming.stop();
+          await incoming.setUrl(targetTrack.streamUrl!);
+          await incoming.seek(Duration.zero);
         } catch (e) {
           debugPrint("[SMOOTH_SKIP] Error loading stream into incoming deck: $e");
         }
       }
 
-      // 6. Start incoming deck playing if not already playing.
-      // CRITICAL: In just_audio, play() returns a Future that only completes when audio finishes
-      // or is paused. We MUST NOT await it, otherwise it blocks until the entire song ends!
-      if (!incoming.playing) {
-        if (incoming.position == Duration.zero) {
-          try {
-            await incoming.seek(Duration.zero).timeout(const Duration(milliseconds: 300));
-          } catch (_) {}
-        }
-        await incoming.setVolume(0.0);
-        unawaited(incoming.play().catchError((e) => debugPrint("[SMOOTH_SKIP] incoming.play error: $e")));
-      }
+      // 6. Start incoming deck playing from 0:00 at zero volume before crossfading in!
+      await incoming.setVolume(0.0);
+      unawaited(incoming.play().catchError((e) => debugPrint("[SMOOTH_SKIP] incoming.play error: $e")));
 
       final int steps = lowSpecMode ? 16 : 36;
       final int stepDurationMs = (duration * 1000) ~/ steps;
