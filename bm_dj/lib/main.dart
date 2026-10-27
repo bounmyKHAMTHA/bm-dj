@@ -13,6 +13,7 @@ import 'widgets/dual_waveform_bar.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await ApiService.init();
   await AuthService.instance.init();
   runApp(
     ChangeNotifierProvider(

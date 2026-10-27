@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/track.dart';
 
 class ApiService {
@@ -15,7 +16,22 @@ class ApiService {
     }
     return 'http://127.0.0.1:8000';
   }
-  static set baseUrl(String url) => _customBaseUrl = url;
+  static set baseUrl(String url) {
+    _customBaseUrl = url.trim().replaceAll(RegExp(r'/+$'), '');
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.setString('bm_dj_custom_base_url', _customBaseUrl);
+    });
+  }
+
+  static Future<void> init() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedUrl = prefs.getString('bm_dj_custom_base_url');
+      if (savedUrl != null && savedUrl.isNotEmpty) {
+        _customBaseUrl = savedUrl.trim().replaceAll(RegExp(r'/+$'), '');
+      }
+    } catch (_) {}
+  }
 
   static String? authToken;
   static bool isTestMode = false;
