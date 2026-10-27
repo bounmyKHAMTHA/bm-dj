@@ -122,12 +122,22 @@ class DJDeckManager extends ChangeNotifier {
       _checkAutoCrossfade(ActiveDeck.deckB, pos);
     });
 
-    // Listen to playback states
-    _stateSubA = deckA.playerStateStream.listen((_) {
-      if (!_disposed) notifyListeners();
+    // Listen to playback states and song completions
+    _stateSubA = deckA.playerStateStream.listen((state) {
+      if (!_disposed) {
+        if (state.processingState == ProcessingState.completed) {
+          _onDeckPlaybackCompleted(ActiveDeck.deckA);
+        }
+        notifyListeners();
+      }
     });
-    _stateSubB = deckB.playerStateStream.listen((_) {
-      if (!_disposed) notifyListeners();
+    _stateSubB = deckB.playerStateStream.listen((state) {
+      if (!_disposed) {
+        if (state.processingState == ProcessingState.completed) {
+          _onDeckPlaybackCompleted(ActiveDeck.deckB);
+        }
+        notifyListeners();
+      }
     });
 
     // Listen to AuthService for user login memory restoration
@@ -177,14 +187,26 @@ class DJDeckManager extends ChangeNotifier {
 
     final remaining = duration - position;
 
-    // Proactively prepare standby deck when song has 15 seconds remaining
-    if (remaining.inSeconds <= 15 && standbyTrack == null) {
+    // Proactively prepare standby deck when song has 25 seconds remaining (plenty of time to resolve stream)
+    if (remaining.inSeconds <= 25 && standbyTrack == null) {
       _checkAndPreloadNextQueueItem();
     }
 
-    if (remaining.inSeconds <= transitionDurationSeconds && standbyTrack != null) {
+    // Trigger smooth skip transition when remaining time matches transition duration
+    if (remaining.inSeconds <= transitionDurationSeconds && remaining.inSeconds > 0) {
       executeSmoothSkip(durationSeconds: transitionDurationSeconds);
     }
+  }
+
+  /// When a song finishes playing completely (ProcessingState.completed)
+  Future<void> _onDeckPlaybackCompleted(ActiveDeck deck) async {
+    final isThisActive = (deck == ActiveDeck.deckA && crossfadePosition < 0.5) ||
+                         (deck == ActiveDeck.deckB && crossfadePosition >= 0.5);
+    if (!isThisActive || isTransitioning) return;
+
+    debugPrint("[AUTO-DJ] Deck ${deck == ActiveDeck.deckA ? 'A' : 'B'} completed playback. Advancing to next track.");
+    // Force transition to standby deck immediately
+    await executeSmoothSkip(durationSeconds: 2);
   }
 
   // Pre-load track into the standby deck
@@ -454,6 +476,14 @@ class DJDeckManager extends ChangeNotifier {
       try {
         await outgoing.pause();
       } catch (_) {}
+
+      // Clear the finished track from outgoing deck so it's ready for the next queue item
+      if (movingToDeckB) {
+        trackA = null;
+      } else {
+        trackB = null;
+      }
+      notifyListeners();
     } catch (e, stack) {
       debugPrint("[SMOOTH_SKIP] Error during smooth skip: $e\n$stack");
     } finally {
@@ -462,8 +492,8 @@ class DJDeckManager extends ChangeNotifier {
       notifyListeners();
     }
 
-    // Pre-buffer next track if the now-standby deck is empty
-    _checkAndPreloadNextQueueItem();
+    // Immediately load next track from queue or Auto-DJ into the now-empty standby deck!
+    await _checkAndPreloadNextQueueItem();
   }
 
 
@@ -929,11 +959,46 @@ class DJDeckManager extends ChangeNotifier {
 
   // Start both decks together (mix with the crossfader)
   Future<void> playBoth() async {
+    // If either deck is currently playing, toggle: if both playing, pause; if one or none, play both!
+    if (deckA.playing && deckB.playing) {
+      await Future.wait([deckA.pause(), deckB.pause()]);
+      notifyListeners();
+      return;
+    }
+
+    // 1. Ensure Deck A is loaded
+    if (trackA != null) {
+      if (deckA.duration == null && trackA!.streamUrl != null && trackA!.streamUrl!.isNotEmpty) {
+        try {
+          await deckA.setUrl(trackA!.streamUrl!).timeout(const Duration(seconds: 4));
+        } catch (_) {}
+      } else if (trackA!.streamUrl == null) {
+        unawaited(loadTrackToDeck(ActiveDeck.deckA, trackA!, autoPlay: true));
+      }
+    }
+
+    // 2. Ensure Deck B is loaded
+    if (trackB != null) {
+      if (deckB.duration == null && trackB!.streamUrl != null && trackB!.streamUrl!.isNotEmpty) {
+        try {
+          await deckB.setUrl(trackB!.streamUrl!).timeout(const Duration(seconds: 4));
+        } catch (_) {}
+      } else if (trackB!.streamUrl == null) {
+        unawaited(loadTrackToDeck(ActiveDeck.deckB, trackB!, autoPlay: true));
+      }
+    }
+
+    // Center crossfader slightly towards middle (0.5) if it was hard at 0.0 or 1.0, so both tracks are clearly audible!
+    if (crossfadePosition <= 0.05 || crossfadePosition >= 0.95) {
+      crossfadePosition = 0.5;
+    }
+
     await _applyCrossfaderVolumes();
-    if (trackA != null && deckA.duration != null) {
+
+    if (trackA != null) {
       unawaited(deckA.play().catchError((e) => debugPrint("[PLAYBOTH A] Error: $e")));
     }
-    if (trackB != null && deckB.duration != null) {
+    if (trackB != null) {
       unawaited(deckB.play().catchError((e) => debugPrint("[PLAYBOTH B] Error: $e")));
     }
     notifyListeners();
