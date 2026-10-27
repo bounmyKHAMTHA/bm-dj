@@ -4,7 +4,19 @@ import 'package:http/http.dart' as http;
 import '../models/track.dart';
 
 class ApiService {
-  static String baseUrl = 'http://127.0.0.1:8000';
+  static String _customBaseUrl = '';
+  static String get baseUrl {
+    if (_customBaseUrl.isNotEmpty) return _customBaseUrl;
+    if (kIsWeb) {
+      final host = Uri.base.host;
+      if (host.isNotEmpty && host != 'localhost' && host != '127.0.0.1') {
+        return '${Uri.base.scheme}://$host:8000';
+      }
+    }
+    return 'http://127.0.0.1:8000';
+  }
+  static set baseUrl(String url) => _customBaseUrl = url;
+
   static String? authToken;
   static bool isTestMode = false;
 
