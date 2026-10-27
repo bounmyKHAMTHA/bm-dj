@@ -506,18 +506,6 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
                     },
                   ),
 
-                  // 6. Featured Presets Star
-                  _buildSidebarIconButton(
-                    icon: Icons.star,
-                    index: 99,
-                    tooltip: 'เพลงตัวอย่างยอดฮิต (DJ Presets)',
-                    color: Colors.amberAccent,
-                    onTap: () {
-                      _loadDemoPresets();
-                      setState(() => _activeNavIndex = 3);
-                    },
-                  ),
-
                   const SizedBox(height: 12),
                 ],
               ),
@@ -1295,45 +1283,6 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
 
     return Column(
       children: [
-        // YouTube Banner & Category Bar
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          color: const Color(0xFF141722),
-          child: Row(
-            children: [
-              // YouTube Brand Header
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFF0000),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.play_arrow, size: 14, color: Colors.white),
-                    SizedBox(width: 4),
-                    Text(
-                      'YouTube',
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 10),
-              const Text(
-                'หน้าแรก & เพลย์ลิสต์ยอดนิยม',
-                style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold),
-              ),
-              const Spacer(),
-              IconButton(
-                tooltip: 'รีเฟรชหน้าแรก YouTube',
-                icon: const Icon(Icons.refresh, size: 16, color: Colors.white60),
-                onPressed: () => _loadYouTubeExplore(_selectedCategory),
-              ),
-            ],
-          ),
-        ),
-
         // Category Filter Chips
         Container(
           height: 38,
@@ -1460,66 +1409,6 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
   Widget _buildYouTubeMusicHomeView(AuthService auth) {
     return Column(
       children: [
-        // YouTube Music Header Banner
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          color: const Color(0xFF141722),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFF0033),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.play_circle_fill, size: 14, color: Colors.white),
-                    SizedBox(width: 4),
-                    Text(
-                      'YouTube Music',
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 10),
-              const Text(
-                'หน้าแรก & ชาร์ตเพลงยอดนิยม',
-                style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold),
-              ),
-              const Spacer(),
-              if (auth.isYTMusicConnected)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF00F2FE).withAlpha(30),
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: const Color(0xFF00F2FE).withAlpha(100)),
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(Icons.check_circle, size: 12, color: Color(0xFF00F2FE)),
-                      SizedBox(width: 4),
-                      Text('เชื่อมต่อบัญชีแล้ว', style: TextStyle(color: Color(0xFF00F2FE), fontSize: 9.5)),
-                    ],
-                  ),
-                )
-              else
-                TextButton.icon(
-                  onPressed: () => showDialog(context: context, builder: (_) => const YTMusicConnectDialog()),
-                  icon: const Icon(Icons.link, size: 13, color: Color(0xFFFF0033)),
-                  label: const Text('เชื่อมต่อบัญชี Google / YT Music', style: TextStyle(color: Color(0xFFFF0033), fontSize: 10)),
-                  style: TextButton.styleFrom(padding: EdgeInsets.zero, visualDensity: VisualDensity.compact),
-                ),
-              IconButton(
-                tooltip: 'รีเฟรช YouTube Music',
-                icon: const Icon(Icons.refresh, size: 16, color: Colors.white60),
-                onPressed: _loadYouTubeMusicHome,
-              ),
-            ],
-          ),
-        ),
 
         // Sub-tabs: Home & Charts, Trending Playlists, My Library
         Container(
@@ -1689,68 +1578,6 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
             ),
           ),
           const SliverToBoxAdapter(child: SizedBox(height: 10)),
-        ] else ...[
-          // Clean Quick Search & Nonstop DJ Highlights Banner
-          SliverToBoxAdapter(
-            child: Container(
-              margin: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    const Color(0xFFFF0033).withAlpha(35),
-                    const Color(0xFF141824),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFFFF0033).withAlpha(60)),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(7),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFF0033).withAlpha(40),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.music_note, color: Color(0xFFFF0033), size: 18),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'ค้นหาเพลง, DJ Remix หรือวางลิงก์ YouTube Music ได้ทันที',
-                          style: TextStyle(color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'พิมพ์ชื่อเพลง เช่น "อมพระมาพูด dj" หรือชื่อศิลปินในช่องค้นหาด้านบนเพื่อเปิดมิกซ์ได้ทันที',
-                          style: TextStyle(color: Colors.grey[400], fontSize: 9.5),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      _searchController.text = 'อมพระมาพูด dj';
-                      _performSearch('อมพระมาพูด dj');
-                    },
-                    icon: const Icon(Icons.search, size: 12),
-                    label: const Text('ลองค้นหา', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFFF0033),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
-                      minimumSize: const Size(0, 30),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
         ],
 
         // 2. Horizontal Playlists Row
