@@ -10,9 +10,11 @@ import 'widgets/deck_panel.dart';
 import 'widgets/crossfader_center_panel.dart';
 import 'widgets/queue_and_search_panel.dart';
 import 'widgets/dual_waveform_bar.dart';
+import 'services/backend_manager.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await BackendProcessManager.ensureBackendRunning();
   await ApiService.init();
   await AuthService.instance.init();
   runApp(
