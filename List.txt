@@ -1,0 +1,146 @@
+
+ขั้นตอนที่ 1: นำโค้ดขึ้น GitHub (บนเครื่องของคุณ)
+รันคำสั่งเหล่านี้ใน Terminal ที่โฟลเดอร์โปรเจกต์ของคุณครับ:
+
+personal access token (classic) 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
+(ถ้าติดปัญหาเรื่องรหัสผ่าน หรือสิทธิ์การเข้าถึง แจ้งผมได้นะครับ)
+git remote set-url https://github.com/bounmyKHAMTHA/bm-dj.git
+
+git add .
+git commit -m "upgrade 26-09-2026"
+git push origin main
+-----------------------
+https://console.vultr.com/
+syterm8899.com
+
+Location:
+Singapore
+IP Address:
+139.180.216.110 
+Username:
+root
+Password:
+7)cFT9*nVLReM7SC
+
+
+cd /var/www/bm-dj && git pull origin main && systemctl restart bmdj-backend && systemctl restart nginx
+
+คำอธิบายคำสั่ง:
+
+git pull origin main : ดึงโค้ดเวอร์ชันล่าสุดที่มี Audio Proxy และการค้นหาหน้าแรกแบบใหม่
+.venv/bin/pip install --upgrade yt-dlp : อัปเดตตัวดึงสตรีม YouTube เป็นเวอร์ชันล่าสุด ป้องกัน YouTube บล็อก
+systemctl restart bmdj-backend : รีสตาร์ทระบบหลังบ้านให้เปิดใช้งาน Proxy เล่นเพลง
+systemctl restart nginx : รีโหลดเว็บเซิร์ฟเวอร์
+
+ผลการตรวจสอบพอร์ตออกมาดีมากครับ! เซิร์ฟเวอร์เครื่องนี้โล่งมาก มีใช้งานเพียง:
+
+Port 80 (Nginx): สำหรับเว็บหลักเดิม
+Port 22 (SSH): สำหรับล็อกอิน
+พอร์ตยอดนิยมอย่าง Port 8000 (Backend API) และ Port 8080 (Web App) ว่างอยู่ 100% สามารถติดตั้งโปรเจกต์ BM DJ ลงไปได้เลยอย่างปลอดภัย ไม่ชนกับระบบเดิมแน่นอนครับ!
+
+ขั้นตอนที่ 1: ติดตั้งเครื่องมือพื้นฐาน (Python, Pip, Venv, FFmpeg)
+คัดลอกคำสั่งนี้ไปวางในหน้าจอเซิร์ฟเวอร์แล้วกด Enter ครับ:
+
+bash
+apt update && apt install -y python3-pip python3-venv ffmpeg git
+(ระบบจะดาวน์โหลดและติดตั้งเครื่องมือที่จำเป็นสำหรับรันระบบเพลงและแปลงเสียง YouTube)
+
+ขั้นตอนที่ 2: ดึงโค้ดโปรเจกต์ BM DJ จาก GitHub มาไว้ที่ /var/www/bm-dj
+เมื่อคำสั่งแรกเสร็จเรียบร้อย ให้รันคำสั่งนี้เพื่อ Clone โค้ดลงโฟลเดอร์แยกเฉพาะ:
+
+bash
+mkdir -p /var/www && cd /var/www
+git clone https://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@github.com/bounmyKHAMTHA/bm-dj.git bm-dj
+รันทั้งสองคำสั่งนี้เรียบร้อยแล้ว ส่งข้อความมาบอกได้เลยครับ เดี๋ยวเราจะไปต่อที่การติดตั้งแพ็กเกจ Python และเปิดระบบ Backend กันครับ!
+
+
+
+cd /var/www/bm-dj/backend
+# 1. สร้าง Virtual Environment แยกเฉพาะโปรเจกต์
+python3 -m venv .venv
+# 2. ติดตั้งแพ็กเกจของ Django Backend และ Gunicorn
+.venv/bin/pip install --upgrade pip
+.venv/bin/pip install -r requirements.txt gunicorn
+# 3. สร้างไฟล์ .env สำหรับ Google OAuth
+cat << 'EOF' > .env
+GOOGLE_OAUTH_CLIENT_ID=103650475879-ekmifa3927val07t08847kuqjmv12roa.apps.googleusercontent.com
+GOOGLE_OAUTH_CLIENT_SECRET=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
+GOOGLE_OAUTH_REDIRECT_URI=http://139.180.216.110:8000/api/v1/auth/google/callback
+EOF
+# 4. อัปเดตฐานข้อมูลและตรวจสอบระบบ
+.venv/bin/python manage.py migrate
+.venv/bin/python manage.py check
+
+
+วิธีเปิดใช้งาน:
+เมื่อรันคำสั่งเสร็จแล้ว คุณสามารถเปิดเว็บบราวเซอร์ (Chrome / Edge / Safari) บนคอมพิวเตอร์หรือมือถือเครื่องใดก็ได้ แล้วเข้าเล่น DJ ได้ทันทีที่ลิงก์นี้ครับ:
+
+👉 http://139.180.216.110:8080
+
+(โดยที่โปรเจกต์เดิมบน Port 80 ยังคงทำงานได้ตามปกติเหมือนเดิม 100% ครับ) รันเสร็จแล้วลองเปิดลิงก์ดูได้เลยครับ!
+=======================
+
+$dir ກວດສອບຂໍ້ມູນໃນກ່ອງຕາມຟາດ
+
+$  notepad requirements.txt
+$ pip freeze > requirements.txt ໂນດລາຍບາລີໄວ້
+$ pip install -r requirements.txt
+$ pip uninstall -r requirements.txt
+ ລົງລາຍບາໄລລີຕາມ notepad
+
+ຕີດຕັ້ງ ດີຈັງໂກໃນສະພາບຈຳລອງ Venv
+$ pip install Django==4.0.1
+$ django-admin version ກວດເວີຊັ່ນ
+ກວດເວິຊັ້ນ $ python -m django --version
+
+ສ້າງໂປເຈັກ $ django-admin startproject cpuzshpiping. ຖ້າມີ . ຈະສ້າງຂື້ນຍັບອອກມາຕົງພາດທີ່ຢູ່ປະຈຸບັນ
+$ django-admin startproject mysite . postkhy
+
+$ python manage.py runserver
+python manage.py run_huey
+python manage.py runserver 0.0.0.0:8000
+
+===============
+หมายเลข IP ของเครื่องคอมพิวเตอร์ของคุณคือ:
+
+192.168.100.92
+
+ลิงก์สำหรับเปิดทดสอบเว็บ:
+เปิดทดสอบบนเครื่องคอมพิวเตอร์นี้โดยตรง:
+
+http://127.0.0.1:8000/ หรือ http://localhost:8000/
+http://192.168.100.92:8000
+เปิดทดสอบจากเครื่องอื่น / มือถือในวงเครือข่าย Wi-Fi/LAN เดียวกัน:
+
+http://192.168.100.92:8000/
+Webhook Android Forwarder: http://192.168.100.92:8000/api/payment-notify/
+
+==============================
+
+$ python manage.py createsuperuser bounmy /bounmy54344245a@gmail.com / 54344245@888
+
+python manage.py makemigrations
+python manage.py migrate
+
+
+python manage.py collectstatic
+
+python manage.py shell
+------------
+
+
+ลิงก์สำหรับเข้าใช้งาน BM DJ บน Cloud:
+👉 http://139.180.216.110:8080
+----------
+
+flutter build windows --release
+
+D:\work bm\dj bm\bm_dj\build\windows\x64\runner\Release
+
+------------------------------------------
+BM DJ
+
+ปุ่มสลับเซิร์ฟเวอร์ในหน้า Login: เพิ่มปุ่มลัดให้กดเลือกได้ทันที:
+☁️ VPS (139.180.216.110:8888)
+🖥️ Localhost (127.0.0.1:8000)
+🌐 bmdj.syterm8899.com

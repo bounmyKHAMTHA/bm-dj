@@ -10,6 +10,11 @@ from .views import (
     AuthRegisterView,
     AuthLoginView,
     AuthMeView,
+    AuthHeartbeatView,
+    PackagesListView,
+    BuyPackageView,
+    WalletTopUpView,
+    WalletStatusView,
     GoogleAuthInitView,
     GoogleAuthCheckView,
     GoogleAuthCallbackView,
@@ -33,10 +38,19 @@ urlpatterns = [
     path('stream/related', StreamRelatedView.as_view(), name='stream-related'),
     path('stream/channel', StreamChannelView.as_view(), name='stream-channel'),
 
-    # BM DJ User Account Authentication
+    # BM DJ User Account Authentication & Heartbeat (Anti-Cheat)
     path('auth/register', AuthRegisterView.as_view(), name='auth-register'),
     path('auth/login', AuthLoginView.as_view(), name='auth-login'),
     path('auth/me', AuthMeView.as_view(), name='auth-me'),
+    path('auth/heartbeat', AuthHeartbeatView.as_view(), name='auth-heartbeat'),
+
+    # Packages & In-App Store
+    path('packages/', PackagesListView.as_view(), name='packages-list'),
+    path('packages/buy', BuyPackageView.as_view(), name='packages-buy'),
+
+    # Wallet & Top-up System
+    path('wallet/status', WalletStatusView.as_view(), name='wallet-status'),
+    path('wallet/topup', WalletTopUpView.as_view(), name='wallet-topup'),
 
     # Google OAuth 2.0 Sign-In & YouTube Account Sync
     path('auth/google/login', GoogleAuthInitView.as_view(), name='auth-google-login'),

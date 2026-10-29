@@ -1,4 +1,4 @@
-import json
+﻿import json
 import os
 import re
 import time
@@ -19,7 +19,8 @@ from rest_framework.views import APIView
 import yt_dlp
 from ytmusicapi import YTMusic
 
-from .models import UserProfile, UserSearchHistory, UserLikedTrack, UserQueueTrack
+from decimal import Decimal
+from .models import UserProfile, UserSearchHistory, UserLikedTrack, UserQueueTrack, TimePackage, WalletTransaction
 from .ytm_helper import (
     build_ytmusic_auth_headers,
     get_ytmusic_client,
@@ -2131,3 +2132,213 @@ def root_index_view(request):
 </body>
 </html>"""
     return HttpResponse(html, content_type="text/html")
+
+
+# ==============================================================================
+# BILLING, ANTI-CHEAT HEARTBEAT & PACKAGE STORE APIS
+# ==============================================================================
+
+class AuthHeartbeatView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        profile, _ = UserProfile.objects.get_or_create(user=user)
+
+        if profile.is_locked:
+            return Response({
+                'status': 'error',
+                'active': False,
+                'reason': 'locked',
+                'message': profile.lock_reason or 'บัญชีนี้ถูกระงับการใช้งาน กรุณาติดต่อผู้ดูแลระบบ',
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        now = timezone.now()
+        delta = 60
+        if profile.last_heartbeat:
+            elapsed = int((now - profile.last_heartbeat).total_seconds())
+            delta = min(max(elapsed, 1), 120)
+
+        profile.last_heartbeat = now
+        if not profile.is_vip_unlimited:
+            profile.remaining_seconds = max(0, profile.remaining_seconds - delta)
+            profile.total_used_seconds += delta
+
+        profile.save()
+
+        is_active = profile.has_active_subscription
+        return Response({
+            'status': 'success',
+            'active': is_active,
+            'remaining_seconds': profile.remaining_seconds,
+            'remaining_display': profile.remaining_hours_display,
+            'wallet_balance': float(profile.wallet_balance),
+            'is_vip_unlimited': profile.is_vip_unlimited,
+            'deducted_seconds': delta,
+            'server_time': now.isoformat(),
+        })
+
+
+class PackagesListView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        packages = TimePackage.objects.filter(is_active=True).order_by('order', 'original_price')
+        data = []
+        for p in packages:
+            data.append({
+                'id': p.id,
+                'name': p.name,
+                'description': p.description,
+                'seconds': p.seconds,
+                'hours_display': p.hours_display,
+                'is_unlimited': p.is_unlimited,
+                'original_price': float(p.original_price),
+                'discount_price': float(p.discount_price) if p.discount_price is not None else None,
+                'current_price': float(p.current_price),
+                'is_on_sale': p.is_on_sale,
+                'is_hot': p.is_hot,
+            })
+        return Response({'status': 'success', 'packages': data})
+
+
+class BuyPackageView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        package_id = request.data.get('package_id')
+        if not package_id:
+            return Response({'error': 'กรุณาระบุ package_id'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            package = TimePackage.objects.get(id=package_id, is_active=True)
+        except TimePackage.DoesNotExist:
+            return Response({'error': 'ไม่พบแพ็คเกจที่เลือก หรือแพ็คเกจนี้ถูกปิดใช้งาน'}, status=status.HTTP_404_NOT_FOUND)
+
+        profile, _ = UserProfile.objects.get_or_create(user=request.user)
+        price = package.current_price
+
+        if profile.wallet_balance < price:
+            needed = price - profile.wallet_balance
+            return Response({
+                'error': f'ยอดเงินในกระเป๋าไม่เพียงพอ (มี {profile.wallet_balance:.2f} ฿ ขาดอีก {needed:.2f} ฿) กรุณาเติมเงินก่อนทำรายการครับ',
+                'need_topup': True,
+                'wallet_balance': float(profile.wallet_balance),
+                'required_amount': float(price),
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Deduct wallet balance
+        profile.wallet_balance -= price
+        if package.is_unlimited:
+            profile.is_vip_unlimited = True
+        else:
+            profile.remaining_seconds += package.seconds
+
+        profile.save()
+
+        # Record transaction
+        tx = WalletTransaction.objects.create(
+            user=request.user,
+            transaction_type='BUY_PACKAGE',
+            amount=price,
+            seconds_added=package.seconds if not package.is_unlimited else 0,
+            package=package,
+            status='APPROVED',
+            approved_at=timezone.now(),
+            admin_note=f'ซื้อสำเร็จโดยผู้ใช้: {package.name}'
+        )
+
+        return Response({
+            'status': 'success',
+            'message': f'ซื้อ {package.name} สำเร็จเรียบร้อยแล้ว!',
+            'wallet_balance': float(profile.wallet_balance),
+            'remaining_seconds': profile.remaining_seconds,
+            'remaining_display': profile.remaining_hours_display,
+            'is_vip_unlimited': profile.is_vip_unlimited,
+            'transaction_id': tx.id,
+        })
+
+
+class WalletTopUpView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        amount = request.data.get('amount')
+        slip_base64 = request.data.get('slip_base64', '').strip()
+        slip_file = request.FILES.get('slip_image')
+
+        try:
+            amount_dec = Decimal(str(amount))
+            if amount_dec <= 0:
+                raise ValueError()
+        except Exception:
+            return Response({'error': 'กรุณาระบุจำนวนเงินที่ถูกต้อง (มากกว่า 0 บาท)'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not slip_file and not slip_base64:
+            return Response({'error': 'กรุณาแนบรูปสลิปการโอนเงินเพื่อตรวจสอบครับ'}, status=status.HTTP_400_BAD_REQUEST)
+
+        tx = WalletTransaction.objects.create(
+            user=request.user,
+            transaction_type='TOPUP',
+            amount=amount_dec,
+            slip_image=slip_file,
+            slip_image_base64=slip_base64 if not slip_file else '',
+            status='PENDING',
+            admin_note='รอแอดมินตรวจสอบสลิปในระบบหลังบ้าน (Django Admin)'
+        )
+
+        return Response({
+            'status': 'success',
+            'message': 'ส่งข้อมูลการเติมเงินและแนบสลิปเรียบร้อยแล้ว! แอดมินจะตรวจสอบและอนุมัติยอดเงินให้โดยเร็วที่สุดครับ',
+            'transaction_id': tx.id,
+            'amount': float(tx.amount),
+            'status_label': 'รอการตรวจสอบ (Pending)',
+        }, status=status.HTTP_201_CREATED)
+
+
+class WalletStatusView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        profile, _ = UserProfile.objects.get_or_create(user=request.user)
+        recent_txs = WalletTransaction.objects.filter(user=request.user).order_by('-created_at')[:20]
+
+        tx_list = []
+        for tx in recent_txs:
+            slip_url = None
+            if tx.slip_image:
+                slip_url = request.build_absolute_uri(tx.slip_image.url)
+            elif tx.slip_image_base64:
+                slip_url = tx.slip_image_base64
+
+            tx_list.append({
+                'id': tx.id,
+                'type': tx.transaction_type,
+                'type_display': tx.get_transaction_type_display(),
+                'amount': float(tx.amount),
+                'seconds_added': tx.seconds_added,
+                'status': tx.status,
+                'status_display': tx.get_status_display(),
+                'package_name': tx.package.name if tx.package else None,
+                'created_at': tx.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                'approved_at': tx.approved_at.strftime('%Y-%m-%d %H:%M:%S') if tx.approved_at else None,
+                'slip_url': slip_url,
+            })
+
+        return Response({
+            'status': 'success',
+            'wallet_balance': float(profile.wallet_balance),
+            'remaining_seconds': profile.remaining_seconds,
+            'remaining_display': profile.remaining_hours_display,
+            'is_vip_unlimited': profile.is_vip_unlimited,
+            'has_active_subscription': profile.has_active_subscription,
+            'payment_info': {
+                'bank_name': 'ธนาคารกสิกรไทย (Kasikorn Bank) / พร้อมเพย์ PromptPay',
+                'account_name': 'BM DJ / บุนมี คำทา',
+                'account_number': '098-XXX-XXXX',
+                'promptpay_number': '098-XXX-XXXX',
+                'qr_code_image_url': 'https://bmdj.syterm8899.com/static/promptpay_qr.png',
+                'instructions': '1. โอนเงินเข้าบัญชีพร้อมเพย์ตามยอดที่ต้องการ\n2. บันทึกรูปสลิปจากแอพธนาคาร\n3. แนบสลิปแล้วกดส่ง แอดมินจะกดอนุมัติยอดเงินเข้าทันที',
+            },
+            'transactions': tx_list,
+        })

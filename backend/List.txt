@@ -1,0 +1,62 @@
+
+ขั้นตอนที่ 1: นำโค้ดขึ้น GitHub (บนเครื่องของคุณ)
+รันคำสั่งเหล่านี้ใน Terminal ที่โฟลเดอร์โปรเจกต์ของคุณครับ:
+
+personal access token (classic) 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
+(ถ้าติดปัญหาเรื่องรหัสผ่าน หรือสิทธิ์การเข้าถึง แจ้งผมได้นะครับ)
+git remote set-url https://github.com/bounmyKHAMTHA/bm-dj.git
+
+git add .
+git commit -m "upgrade 26-09-2026"
+git push origin main
+
+
+=======================
+
+$dir ກວດສອບຂໍ້ມູນໃນກ່ອງຕາມຟາດ
+
+$  notepad requirements.txt
+$ pip freeze > requirements.txt ໂນດລາຍບາລີໄວ້
+$ pip install -r requirements.txt
+$ pip uninstall -r requirements.txt
+ ລົງລາຍບາໄລລີຕາມ notepad
+
+ຕີດຕັ້ງ ດີຈັງໂກໃນສະພາບຈຳລອງ Venv
+$ pip install Django==4.0.1
+$ django-admin version ກວດເວີຊັ່ນ
+ກວດເວິຊັ້ນ $ python -m django --version
+
+ສ້າງໂປເຈັກ $ django-admin startproject cpuzshpiping. ຖ້າມີ . ຈະສ້າງຂື້ນຍັບອອກມາຕົງພາດທີ່ຢູ່ປະຈຸບັນ
+$ django-admin startproject mysite . postkhy
+
+$ python manage.py runserver
+python manage.py run_huey
+python manage.py runserver 0.0.0.0:8000
+
+===============
+หมายเลข IP ของเครื่องคอมพิวเตอร์ของคุณคือ:
+
+192.168.100.92
+
+ลิงก์สำหรับเปิดทดสอบเว็บ:
+เปิดทดสอบบนเครื่องคอมพิวเตอร์นี้โดยตรง:
+
+http://127.0.0.1:8000/ หรือ http://localhost:8000/
+http://192.168.100.92:8000
+เปิดทดสอบจากเครื่องอื่น / มือถือในวงเครือข่าย Wi-Fi/LAN เดียวกัน:
+
+http://192.168.100.92:8000/
+Webhook Android Forwarder: http://192.168.100.92:8000/api/payment-notify/
+
+==============================
+
+$ python manage.py createsuperuser bounmy /bounmy54344245a@gmail.com / 54344245@888
+
+python manage.py makemigrations
+python manage.py migrate
+
+
+python manage.py collectstatic
+
+python manage.py shell
+------------

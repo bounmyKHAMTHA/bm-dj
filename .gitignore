@@ -20,8 +20,5 @@ build/
 .packages
 
 # Notes and sensitive credential lists
-list.txt
-List.txt
-*.env
-.env*
+
 

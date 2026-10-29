@@ -1,0 +1,81 @@
+
+taskkill /f /im adb.exe
+adb devices
+
+flutter run -d AYG5T19327003375
+flutter run -d S2D0219902002188
+flutter run -d 98Y5T19131004772
+
+
+
+
+"C:\Users\bm\AppData\Local\Android\Sdk\platform-tools\adb.exe" -s AYG5T19327003375 uninstall com.example.flutter_bin888
+"C:\Users\bm\AppData\Local\Android\Sdk\platform-tools\adb.exe" -s AYG5T19327003375 install -r "C:\work_bm\bin888\flutter_bin888\build\app\outputs\flutter-apk\app-debug.apk"
+"C:\Users\bm\AppData\Local\Android\Sdk\platform-tools\adb.exe" -s AYG5T19327003375 shell monkey -p com.example.flutter_bin888 1
+
+
+
+flutter clean && flutter build apk --release
+
+flutter run -d chrome
+flutter run -d web-server --web-port=8080
+flutter run --no-pub -d web-server --web-port=8080
+
+
+
+flutter devices
+adb kill-server && adb devices
+
+flutter run
+flutter doctor
+
+flutter clean
+flutter pub get
+
+flutter build apk --release
+
+flutter build apk --release --no-tree-shake-icons
+flutter run -d windows
+
+flutter analyze
+flutter build appbundle --release --target-platform=android-arm,android-arm64,android-x64
+
+
+
+
+git config --system core.longpaths true
+shorebird login
+shorebird release android
+shorebird patch android
+
+ล้างโปรเจกต์: flutter clean
+โหลดแพ็กเกจใหม่: flutter pub get
+เริ่ม Build ใหม่: shorebird release android
+
+Pushing Patch #6 and guiding user on IDE sync.
+cmd /c C:\Users\bm\.shorebird\bin\shorebird.bat patch android --allow-asset-diffs --release-version=1.0.2+1
+
+cmd /c C:\Users\bm\.shorebird\bin\shorebird.bat patch android --allow-asset-diffs --release-version=1.0.2+1
+---------------
+shorebird release android --artifact apk '--' --no-tree-shake-icons
+
+flutter clean && flutter pub get && shorebird patch android --allow-asset-diffs --release-version=1.0.13+1
+
+shorebird patch --platforms=android --release-version=1.0.12+1 --allow-asset-diffs
+
+
+
+-------------------****** OAuth client created ******* ----------------
+OAuth client created
+The client ID can always be accessed from Clients tab under Google Auth Platform.
+
+OAuth access is restricted to the test users  listed on your OAuth consent screen
+Client ID
+103650475879-ekmifa3927val07t08847kuqjmv12roa.apps.googleusercontent.com
+You will no longer be able to view or download the client secret once you close this dialog. Make sure you have copied or downloaded the information below and securely stored it.
+Client secret
+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
+Creation date
+October 25, 2026, 3:50:33 PM GMT+7
+Status
+ Enabled
