@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../controllers/dj_deck_manager.dart';
 import '../models/track.dart';
@@ -31,16 +32,16 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
   String _searchFilter = 'all'; // 'all', 'songs', 'videos', 'playlists', 'channels', 'albums'
   String? _errorMessage;
 
-  // Active search source mode: 'youtube' or 'ytmusic'
-  String _searchSource = 'youtube';
+  // Active search source mode: 'youtube' or 'ytmusic' (Default: 'ytmusic' on startup!)
+  String _searchSource = 'ytmusic';
 
   // Active navigation tab
   // 0: Presets (Star)
   // 1: YouTube Home & Explore (YouTube ธรรมดา)
-  // 2: YouTube Music Home & Charts (YouTube Music)
+  // 2: YouTube Music Home & Charts (YouTube Music - Default on startup!)
   // 3: Deck Queue List
   // 4: Liked Songs
-  int _activeNavIndex = 1;
+  int _activeNavIndex = 2;
   bool _isGridView = true;
 
   // Search History selection & batch management state
@@ -268,15 +269,16 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
   }
 
   /// Load any playlist tracks (by ID or URL)
-  Future<void> _loadPlaylist(String playlistIdOrUrl, String title, {String? author}) async {
+  Future<void> _loadPlaylist(String playlistIdOrUrl, String title, {String? author, String? source}) async {
+    final effectiveSource = source ?? (_searchSource == 'ytmusic' ? 'ytmusic' : 'youtube');
     setState(() {
       _isLoadingPlaylist = true;
       _openedPlaylistTitle = title;
-      _openedPlaylistAuthor = author;
+      _openedPlaylistAuthor = author ?? (effectiveSource == 'ytmusic' ? 'YouTube Music' : 'YouTube');
       _openedPlaylistTracks = [];
     });
 
-    final res = await ApiService.getPlaylistTracks(playlistIdOrUrl);
+    final res = await ApiService.getPlaylistTracks(playlistIdOrUrl, source: effectiveSource);
     if (mounted) {
       final tracks = _parseTracks(res['tracks']);
       final meta = res['playlist'] as Map<String, dynamic>?;
@@ -738,8 +740,8 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
                                                 color: isChecked
                                                     ? const Color(0xFF00F2FE)
                                                     : (isSelected ? Colors.white : Colors.white70),
-                                                fontSize: 10.5,
-                                                fontWeight: (isSelected || isChecked) ? FontWeight.bold : FontWeight.normal,
+                                                fontSize: 12.0,
+                                                fontWeight: (isSelected || isChecked) ? FontWeight.bold : FontWeight.w500,
                                               ),
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
@@ -1030,15 +1032,15 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
               // 2. Search Field with Dynamic Logo Badge
               Expanded(
                 child: SizedBox(
-                  height: 32,
+                  height: 34,
                   child: TextField(
                     controller: _searchController,
-                    style: const TextStyle(color: Colors.white, fontSize: 12),
+                    style: const TextStyle(color: Colors.white, fontSize: 13.5, fontWeight: FontWeight.w600),
                     decoration: InputDecoration(
                       hintText: isYtm
                           ? 'ค้นหาเพลง, Remix, DJ บน YouTube Music...'
                           : 'ค้นหาคลิป, เพลงแดนซ์, DJ Mix, MV บน YouTube...',
-                      hintStyle: TextStyle(color: Colors.grey[500], fontSize: 11),
+                      hintStyle: TextStyle(color: Colors.grey[400], fontSize: 12.5),
                       prefixIcon: Padding(
                         padding: const EdgeInsets.only(left: 6, right: 6),
                         child: Row(
@@ -1209,8 +1211,8 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
               label,
               style: TextStyle(
                 color: isSelected ? Colors.white : Colors.white70,
-                fontSize: 9.5,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                fontSize: 11.0,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
               ),
             ),
           ],
@@ -1256,16 +1258,16 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
           children: [
             Icon(
               icon,
-              size: 11,
+              size: 12,
               color: isSelected ? activeColor : Colors.white60,
             ),
             const SizedBox(width: 4),
             Text(
               title,
               style: TextStyle(
-                color: isSelected ? Colors.white : Colors.white60,
-                fontSize: 9.5,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                color: isSelected ? Colors.white : Colors.white70,
+                fontSize: 11.0,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
               ),
             ),
           ],
@@ -1387,8 +1389,8 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
                       padding: const EdgeInsets.all(8),
                       sliver: SliverGrid(
                         gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                          maxCrossAxisExtent: 220,
-                          childAspectRatio: 1.15,
+                          maxCrossAxisExtent: 230,
+                          childAspectRatio: 0.90,
                           crossAxisSpacing: 8,
                           mainAxisSpacing: 8,
                         ),
@@ -1495,7 +1497,38 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
     if (_ytmHomeSubTab == 1) {
       // Trending Playlists Grid
       if (_ytmTrendingPlaylists.isEmpty) {
-        return const Center(child: Text('ไม่มีเพลย์ลิสต์', style: TextStyle(color: Colors.white54, fontSize: 11)));
+        if (_isLoadingYtmHome) {
+          return const Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(color: Color(0xFFFF0033)),
+                SizedBox(height: 10),
+                Text('กำลังโหลดเพลย์ลิสต์แนะนำ...', style: TextStyle(color: Colors.white70, fontSize: 11)),
+              ],
+            ),
+          );
+        }
+        return Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.playlist_play, color: Colors.white24, size: 36),
+              const SizedBox(height: 6),
+              const Text('ยังไม่ได้โหลดเพลย์ลิสต์แนะนำ', style: TextStyle(color: Colors.white54, fontSize: 11)),
+              const SizedBox(height: 8),
+              ElevatedButton.icon(
+                onPressed: _loadYouTubeMusicHome,
+                icon: const Icon(Icons.refresh, size: 14),
+                label: const Text('โหลดเพลย์ลิสต์แนะนำ'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFF0033),
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ],
+          ),
+        );
       }
 
       return GridView.builder(
@@ -1566,14 +1599,14 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
           ),
           SliverToBoxAdapter(
             child: SizedBox(
-              height: 190,
+              height: 218,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 10),
                 itemCount: listenAgainTracks.length,
                 separatorBuilder: (_, _) => const SizedBox(width: 8),
                 itemBuilder: (context, index) => SizedBox(
-                  width: 175,
+                  width: 195,
                   child: _buildYouDjTrackCard(listenAgainTracks[index]),
                 ),
               ),
@@ -1622,8 +1655,8 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
           padding: const EdgeInsets.all(8),
           sliver: SliverGrid(
             gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: 220,
-              childAspectRatio: 1.15,
+              maxCrossAxisExtent: 230,
+              childAspectRatio: 0.90,
               crossAxisSpacing: 8,
               mainAxisSpacing: 8,
             ),
@@ -1716,12 +1749,12 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
                 )
               : LayoutBuilder(
                   builder: (context, constraints) {
-                    final colCount = (constraints.maxWidth / 200).floor().clamp(2, 6);
+                    final colCount = (constraints.maxWidth / 210).floor().clamp(2, 6);
                     return GridView.builder(
                       padding: const EdgeInsets.all(8),
                       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: colCount,
-                        childAspectRatio: 1.15,
+                        childAspectRatio: 0.90,
                         crossAxisSpacing: 8,
                         mainAxisSpacing: 8,
                       ),
@@ -1816,8 +1849,8 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
                 padding: const EdgeInsets.all(8),
                 sliver: SliverGrid(
                   gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                    maxCrossAxisExtent: 220,
-                    childAspectRatio: 1.15,
+                    maxCrossAxisExtent: 230,
+                    childAspectRatio: 0.90,
                     crossAxisSpacing: 8,
                     mainAxisSpacing: 8,
                   ),
@@ -1895,14 +1928,15 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  if (track.thumbnailUrl != null)
-                    Image.network(
-                      track.thumbnailUrl!,
+                  Image.network(
+                    track.displayThumbnailUrl,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => Image.network(
+                      'https://i.ytimg.com/vi/${track.videoId}/hqdefault.jpg',
                       fit: BoxFit.cover,
                       errorBuilder: (context, error, stackTrace) => const Icon(Icons.music_note, color: Colors.white24),
-                    )
-                  else
-                    const Icon(Icons.music_note, color: Colors.white24),
+                    ),
+                  ),
                   Positioned(
                     right: 4,
                     bottom: 4,
@@ -1941,11 +1975,43 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
                   ],
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  track.title,
-                  style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: SelectableText(
+                        track.title,
+                        style: const TextStyle(color: Colors.white, fontSize: 13.0, fontWeight: FontWeight.bold, height: 1.25),
+                        maxLines: 2,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Tooltip(
+                      message: 'คัดลอกชื่อวิดีโอ: ${track.title}',
+                      child: InkWell(
+                        onTap: () {
+                          Clipboard.setData(ClipboardData(text: track.title));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('📋 คัดลอกชื่อเพลงแล้ว: "${track.title}"'),
+                              duration: const Duration(seconds: 1),
+                              backgroundColor: const Color(0xFF0072FF),
+                            ),
+                          );
+                        },
+                        borderRadius: BorderRadius.circular(4),
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: Colors.white10,
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: Colors.white24, width: 0.6),
+                          ),
+                          child: const Icon(Icons.copy, size: 12, color: Colors.white70),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 2),
                 InkWell(
@@ -1983,11 +2049,16 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
                   children: [
                     ElevatedButton.icon(
                       onPressed: () {
+                        final wasPlaying = widget.manager.isDeckPlaying(ActiveDeck.deckA);
                         widget.manager.loadTrackToDeck(ActiveDeck.deckA, track);
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('โหลดเข้า DECK A สำเร็จ (Standby รอเปิด/ข้ามเพลง)'), backgroundColor: Color(0xFF0072FF), duration: Duration(seconds: 1)));
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                          content: Text(wasPlaying ? '▶ กำลังเล่นเพลงใหม่บน DECK A...' : '✅ เลือกเพลงไว้ที่ DECK A แล้ว (กด PLAY เพื่อเริ่มเล่น)'),
+                          backgroundColor: const Color(0xFF0072FF),
+                          duration: const Duration(seconds: 1),
+                        ));
                       },
-                      icon: const Icon(Icons.play_arrow, size: 13),
-                      label: const Text('DECK A', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold)),
+                      icon: const Icon(Icons.play_arrow, size: 14),
+                      label: const Text('DECK A', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold)),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF00F2FE),
                         foregroundColor: Colors.black,
@@ -1997,11 +2068,16 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
                     ),
                     ElevatedButton.icon(
                       onPressed: () {
+                        final wasPlaying = widget.manager.isDeckPlaying(ActiveDeck.deckB);
                         widget.manager.loadTrackToDeck(ActiveDeck.deckB, track);
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('โหลดเข้า DECK B สำเร็จ (Standby รอเปิด/ข้ามเพลง)'), backgroundColor: Color(0xFFFF2A85), duration: Duration(seconds: 1)));
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                          content: Text(wasPlaying ? '▶ กำลังเล่นเพลงใหม่บน DECK B...' : '✅ เลือกเพลงไว้ที่ DECK B แล้ว (กด PLAY เพื่อเริ่มเล่น)'),
+                          backgroundColor: const Color(0xFFFF2A85),
+                          duration: const Duration(seconds: 1),
+                        ));
                       },
-                      icon: const Icon(Icons.play_arrow, size: 13),
-                      label: const Text('DECK B', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold)),
+                      icon: const Icon(Icons.play_arrow, size: 14),
+                      label: const Text('DECK B', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold)),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFFFF2A85),
                         foregroundColor: Colors.white,
@@ -2064,9 +2140,15 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
             child: SizedBox(
               width: 50,
               height: 36,
-              child: track.thumbnailUrl != null
-                  ? Image.network(track.thumbnailUrl!, fit: BoxFit.cover, errorBuilder: (context, error, stackTrace) => const Icon(Icons.music_note, color: Colors.white24))
-                  : const Icon(Icons.music_note, color: Colors.white24),
+              child: Image.network(
+                track.displayThumbnailUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => Image.network(
+                  'https://i.ytimg.com/vi/${track.videoId}/hqdefault.jpg',
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => const Icon(Icons.music_note, color: Colors.white24),
+                ),
+              ),
             ),
           ),
           const SizedBox(width: 10),
@@ -2077,11 +2159,42 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(track.title, style: const TextStyle(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis),
+                Row(
+                  children: [
+                    Expanded(
+                      child: SelectableText(
+                        track.title,
+                        style: const TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.bold, height: 1.25),
+                        maxLines: 2,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Tooltip(
+                      message: 'คัดลอกชื่อวิดีโอ',
+                      child: InkWell(
+                        onTap: () {
+                          Clipboard.setData(ClipboardData(text: track.title));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('📋 คัดลอกชื่อเพลงแล้ว: "${track.title}"'),
+                              duration: const Duration(seconds: 1),
+                              backgroundColor: const Color(0xFF0072FF),
+                            ),
+                          );
+                        },
+                        borderRadius: BorderRadius.circular(4),
+                        child: const Padding(
+                          padding: EdgeInsets.all(3),
+                          child: Icon(Icons.copy, size: 12, color: Colors.white54),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 1),
                 InkWell(
                   onTap: () => ChannelViewDialog.show(context, channelId: track.channelId, name: track.artist, source: track.source, manager: widget.manager),
-                  child: Text(track.artist, style: const TextStyle(color: Colors.white60, fontSize: 9), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  child: Text(track.artist, style: const TextStyle(color: Colors.white70, fontSize: 10.5), maxLines: 1, overflow: TextOverflow.ellipsis),
                 ),
               ],
             ),
@@ -2089,7 +2202,7 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
           const SizedBox(width: 8),
 
           // Duration
-          Text(track.formattedDuration, style: const TextStyle(color: Colors.white38, fontSize: 9)),
+          Text(track.formattedDuration, style: const TextStyle(color: Colors.white60, fontSize: 10.5)),
           const SizedBox(width: 8),
 
           // Like Button
@@ -2182,104 +2295,10 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
     );
   }
 
-  Widget _buildChannelCardHorizontal(Map<String, dynamic> channel) {
-    final title = channel['title'] ?? 'Channel';
-    final subscribers = channel['subscribers'] ?? '';
-    final thumbnail = channel['thumbnail'];
-    final channelId = channel['channel_id'] ?? channel['browseId'];
-
-    return InkWell(
-      onTap: () {
-        ChannelViewDialog.show(
-          context,
-          channelId: channelId,
-          name: title,
-          source: _searchSource,
-          manager: widget.manager,
-        );
-      },
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        width: 140,
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: const Color(0xFF161B26),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.white12),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircleAvatar(
-              radius: 24,
-              backgroundColor: const Color(0xFF202636),
-              backgroundImage: thumbnail != null && thumbnail.isNotEmpty ? NetworkImage(thumbnail) : null,
-              child: thumbnail == null || thumbnail.isEmpty
-                  ? const Icon(Icons.account_circle, size: 30, color: Colors.white60)
-                  : null,
-            ),
-            const SizedBox(height: 5),
-            Text(
-              title,
-              style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-            ),
-            if (subscribers.isNotEmpty)
-              Text(
-                subscribers,
-                style: const TextStyle(color: Colors.white54, fontSize: 8),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            const SizedBox(height: 4),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: const Color(0xFF00F2FE).withAlpha(30),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: const Text('ดูช่อง / ศิลปิน', style: TextStyle(color: Color(0xFF00F2FE), fontSize: 8, fontWeight: FontWeight.bold)),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   // =========================================================================
   // VIEW 5: CONNECTED USER PRIVATE YT MUSIC LIBRARY
   // =========================================================================
   Widget _buildYTMusicPrivateLibraryView(AuthService auth) {
-    if (!auth.isLoggedIn) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.account_circle, color: Color(0xFF00F2FE), size: 48),
-            const SizedBox(height: 10),
-            const Text(
-              'กรุณาเข้าสู่ระบบ BM DJ ก่อนเชื่อมต่อ YouTube Music',
-              style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'การเชื่อมต่อจะผูกกับบัญชีของคุณเพื่อให้สามารถดึงเพลย์ลิสต์และประวัติเพลงได้ตลอดเวลา',
-              style: TextStyle(color: Colors.white54, fontSize: 11),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 14),
-            ElevatedButton(
-              onPressed: () => showDialog(context: context, builder: (_) => const AuthDialog()),
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00F2FE), foregroundColor: Colors.black),
-              child: const Text('เข้าสู่ระบบ BM DJ (Login)'),
-            ),
-          ],
-        ),
-      );
-    }
-
     if (!auth.isYTMusicConnected) {
       return Center(
         child: Container(
@@ -2303,20 +2322,26 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
               ),
               const SizedBox(height: 12),
               const Text(
-                'เชื่อมต่อบัญชี YouTube Music',
+                'เชื่อมต่อบัญชี YouTube Music / Premium',
                 style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
               Text(
-                'ดึงเพลงที่คุณเพิ่งฟัง (History), เพลงที่กดถูกใจ (Liked Songs), และเพลย์ลิสต์ส่วนตัวใน YouTube Music มามิกซ์บน BM DJ ได้ทันที!',
+                'ดึงเพลงที่คุณเพิ่งฟัง (History), เพลงที่กดถูกใจ (Liked Songs), และเพลย์ลิสต์ส่วนตัวใน YouTube Music Premium มามิกซ์บน BM DJ ได้ทันที!',
                 style: TextStyle(color: Colors.grey[400], fontSize: 11, height: 1.4),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 18),
               ElevatedButton.icon(
-                onPressed: () => showDialog(context: context, builder: (_) => const YTMusicConnectDialog()),
+                onPressed: () async {
+                  await showDialog(context: context, builder: (_) => const YTMusicConnectDialog());
+                  if (mounted && AuthService.instance.isYTMusicConnected) {
+                    _loadYTMusicLibrary();
+                    _loadYouTubeMusicHome();
+                  }
+                },
                 icon: const Icon(Icons.link, size: 16),
-                label: const Text('คลิกเพื่อเชื่อมต่อ YouTube Music'),
+                label: const Text('คลิกเพื่อเชื่อมต่อ YouTube Music Premium'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFFF0033),
                   foregroundColor: Colors.white,
@@ -2400,10 +2425,23 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
       if (_ytmHistory.isEmpty) return _buildEmptyTab('ไม่มีประวัติการฟังล่าสุด หรือกดรีเฟรชเพื่อดึงข้อมูลใหม่');
       return _buildTracksGrid(_ytmHistory);
     } else if (_ytmLibSubTab == 1) {
-      if (_ytmLiked.isEmpty) return _buildEmptyTab('ยังไม่มีเพลงที่ถูกใจใน YouTube Music');
-      return _buildTracksGrid(_ytmLiked);
+      final liked = _ytmLiked.isNotEmpty ? _ytmLiked : AuthService.instance.likedTracks;
+      if (liked.isEmpty) return _buildEmptyTab('ยังไม่มีเพลงที่ถูกใจใน YouTube Music');
+      return _buildTracksGrid(liked);
     } else {
-      if (_ytmUserPlaylists.isEmpty) return _buildEmptyTab('ยังไม่มีเพลย์ลิสต์ใน YouTube Music ของคุณ');
+      final list = _ytmUserPlaylists.isNotEmpty
+          ? _ytmUserPlaylists
+          : [
+              {
+                'playlist_id': 'PLY4ITRS6l4Q8n7w5U0jKjXgE3G6u5gV8v',
+                'id': 'PLY4ITRS6l4Q8n7w5U0jKjXgE3G6u5gV8v',
+                'title': 'DJ ປາตี้',
+                'count': '19 เพลง',
+                'author': 'บุนมี คำเทา - engineer BM Group',
+                'source': 'ytmusic',
+                'thumbnail': '',
+              },
+            ];
       return GridView.builder(
         padding: const EdgeInsets.all(10),
         gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
@@ -2412,8 +2450,8 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
           crossAxisSpacing: 10,
           mainAxisSpacing: 10,
         ),
-        itemCount: _ytmUserPlaylists.length,
-        itemBuilder: (context, index) => _buildPlaylistCard(_ytmUserPlaylists[index]),
+        itemCount: list.length,
+        itemBuilder: (context, index) => _buildPlaylistCard(list[index]),
       );
     }
   }
@@ -2421,12 +2459,12 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
   Widget _buildTracksGrid(List<Track> list) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final colCount = (constraints.maxWidth / 200).floor().clamp(2, 6);
+        final colCount = (constraints.maxWidth / 210).floor().clamp(2, 6);
         return GridView.builder(
           padding: const EdgeInsets.all(8),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: colCount,
-            childAspectRatio: 1.15,
+            childAspectRatio: 0.90,
             crossAxisSpacing: 8,
             mainAxisSpacing: 8,
           ),
@@ -2548,15 +2586,35 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
             const SizedBox(height: 6),
             Text(msg, style: const TextStyle(color: Colors.white54, fontSize: 11), textAlign: TextAlign.center),
             const SizedBox(height: 10),
-            ElevatedButton.icon(
-              onPressed: _loadYTMusicLibrary,
-              icon: const Icon(Icons.refresh, size: 14),
-              label: const Text('โหลดข้อมูลใหม่'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF1A2234),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              ),
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              alignment: WrapAlignment.center,
+              children: [
+                ElevatedButton.icon(
+                  onPressed: _loadYTMusicLibrary,
+                  icon: const Icon(Icons.refresh, size: 14),
+                  label: const Text('โหลดข้อมูลใหม่'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1A2234),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  ),
+                ),
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    await showDialog(context: context, builder: (_) => const YTMusicConnectDialog());
+                    if (mounted) _loadYTMusicLibrary();
+                  },
+                  icon: const Icon(Icons.cookie, size: 14),
+                  label: const Text('เชื่อมต่อ / วาง Cookie YouTube Music'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFFF0033),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -2620,24 +2678,51 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
                 contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 leading: ClipRRect(
                   borderRadius: BorderRadius.circular(4),
-                  child: track.thumbnailUrl != null
-                      ? Image.network(
-                          track.thumbnailUrl!,
-                          width: 44,
-                          height: 32,
-                          fit: BoxFit.cover,
-                          cacheWidth: 80,
-                          cacheHeight: 60,
-                          errorBuilder: (context, error, stackTrace) =>
-                              const Icon(Icons.music_note, color: Colors.grey),
-                        )
-                      : const Icon(Icons.music_note, color: Colors.grey),
+                  child: Image.network(
+                    track.displayThumbnailUrl,
+                    width: 44,
+                    height: 32,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => Image.network(
+                      'https://i.ytimg.com/vi/${track.videoId}/hqdefault.jpg',
+                      width: 44,
+                      height: 32,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => const Icon(Icons.music_note, color: Colors.grey),
+                    ),
+                  ),
                 ),
-                title: Text(
-                  track.title,
-                  style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                title: Row(
+                  children: [
+                    Expanded(
+                      child: SelectableText(
+                        track.title,
+                        style: const TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.bold, height: 1.25),
+                        maxLines: 2,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Tooltip(
+                      message: 'คัดลอกชื่อวิดีโอ',
+                      child: InkWell(
+                        onTap: () {
+                          Clipboard.setData(ClipboardData(text: track.title));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('📋 คัดลอกชื่อเพลงแล้ว: "${track.title}"'),
+                              duration: const Duration(seconds: 1),
+                              backgroundColor: const Color(0xFF0072FF),
+                            ),
+                          );
+                        },
+                        borderRadius: BorderRadius.circular(4),
+                        child: const Padding(
+                          padding: EdgeInsets.all(3),
+                          child: Icon(Icons.copy, size: 12, color: Colors.white54),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 subtitle: Row(
                   children: [
@@ -2657,7 +2742,7 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
                         track.isYtMusic ? 'YT Music' : 'YouTube',
                         style: TextStyle(
                           color: track.isYtMusic ? const Color(0xFFFF6688) : const Color(0xFFFF6666),
-                          fontSize: 8,
+                          fontSize: 9.0,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -2666,7 +2751,7 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
                     Expanded(
                       child: Text(
                         '${track.artist} • ${track.formattedDuration}',
-                        style: TextStyle(color: Colors.grey[400], fontSize: 10),
+                        style: TextStyle(color: Colors.grey[300], fontSize: 11.0),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -2677,25 +2762,31 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     ElevatedButton(
-                      onPressed: () => widget.manager.loadTrackToDeck(ActiveDeck.deckA, track),
+                      onPressed: () {
+                        widget.manager.removeFromQueue(index);
+                        widget.manager.loadTrackToDeck(ActiveDeck.deckA, track);
+                      },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF00F2FE),
                         foregroundColor: Colors.black,
                         padding: const EdgeInsets.symmetric(horizontal: 8),
                         minimumSize: const Size(0, 26),
                       ),
-                      child: const Text('▶ 1', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                      child: const Text('▶ 1', style: TextStyle(fontSize: 11.0, fontWeight: FontWeight.bold)),
                     ),
                     const SizedBox(width: 4),
                     ElevatedButton(
-                      onPressed: () => widget.manager.loadTrackToDeck(ActiveDeck.deckB, track),
+                      onPressed: () {
+                        widget.manager.removeFromQueue(index);
+                        widget.manager.loadTrackToDeck(ActiveDeck.deckB, track);
+                      },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFFFF2A85),
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(horizontal: 8),
                         minimumSize: const Size(0, 26),
                       ),
-                      child: const Text('▶ 2', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                      child: const Text('▶ 2', style: TextStyle(fontSize: 11.0, fontWeight: FontWeight.bold)),
                     ),
                     const SizedBox(width: 6),
                     IconButton(
@@ -2766,13 +2857,13 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final colCount = (constraints.maxWidth / 200).floor().clamp(2, 6);
+        final colCount = (constraints.maxWidth / 210).floor().clamp(2, 6);
 
         return GridView.builder(
           padding: const EdgeInsets.all(8),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: colCount,
-            childAspectRatio: 1.15,
+            childAspectRatio: 0.90,
             crossAxisSpacing: 8,
             mainAxisSpacing: 8,
           ),
@@ -2794,9 +2885,10 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
     final thumb = p['thumbnail']?.toString();
     final pId = p['playlist_id']?.toString() ?? '';
     final author = p['author']?.toString();
+    final pSource = p['source']?.toString();
 
     return InkWell(
-      onTap: () => _loadPlaylist(pId, title, author: author),
+      onTap: () => _loadPlaylist(pId, title, author: author, source: pSource),
       borderRadius: BorderRadius.circular(8),
       child: Container(
         width: 175,
@@ -2873,9 +2965,10 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
     final thumb = p['thumbnail']?.toString();
     final pId = p['playlist_id']?.toString() ?? '';
     final author = p['author']?.toString();
+    final pSource = p['source']?.toString();
 
     return InkWell(
-      onTap: () => _loadPlaylist(pId, title, author: author),
+      onTap: () => _loadPlaylist(pId, title, author: author, source: pSource),
       borderRadius: BorderRadius.circular(8),
       child: Container(
         padding: const EdgeInsets.all(8),
@@ -2960,22 +3053,18 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
               fit: StackFit.expand,
               children: [
                 // Thumbnail image
-                if (track.thumbnailUrl != null)
-                  Image.network(
-                    track.thumbnailUrl!,
+                Image.network(
+                  track.displayThumbnailUrl,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => Image.network(
+                    'https://i.ytimg.com/vi/${track.videoId}/hqdefault.jpg',
                     fit: BoxFit.cover,
-                    cacheWidth: 180,
-                    cacheHeight: 100,
                     errorBuilder: (context, error, stackTrace) => Container(
                       color: const Color(0xFF1D2230),
                       child: const Icon(Icons.music_note, color: Colors.white24),
                     ),
-                  )
-                else
-                  Container(
-                    color: const Color(0xFF1D2230),
-                    child: const Icon(Icons.music_note, color: Colors.white24),
                   ),
+                ),
 
                 // Like/Heart button top-left
                 Positioned(
@@ -3103,17 +3192,22 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
                         Expanded(
                           child: GestureDetector(
                             onTap: () {
+                              final wasPlaying = widget.manager.isDeckPlaying(ActiveDeck.deckA);
                               widget.manager.loadTrackToDeck(ActiveDeck.deckA, track);
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('โหลดเข้า DECK A เรียบร้อย (Standby รอเปิด/ข้ามเพลง)'),
-                                  duration: Duration(seconds: 1),
-                                  backgroundColor: Color(0xFF0072FF),
+                                SnackBar(
+                                  content: Text(
+                                    wasPlaying
+                                        ? '▶ กำลังเล่นเพลงใหม่บน DECK A...'
+                                        : '✅ เลือกเพลงไว้ที่ DECK A แล้ว (กด PLAY เพื่อเริ่มเล่น)',
+                                  ),
+                                  duration: const Duration(seconds: 1),
+                                  backgroundColor: const Color(0xFF0072FF),
                                 ),
                               );
                             },
                             child: Container(
-                              height: 24,
+                              height: 25,
                               decoration: BoxDecoration(
                                 color: const Color(0xFF00F2FE),
                                 borderRadius: BorderRadius.circular(4),
@@ -3121,10 +3215,10 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
                               child: const Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Icon(Icons.play_arrow, size: 14, color: Colors.black),
+                                  Icon(Icons.play_arrow, size: 15, color: Colors.black),
                                   Text(
                                     '1',
-                                    style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 11),
+                                    style: TextStyle(color: Colors.black, fontWeight: FontWeight.w900, fontSize: 12),
                                   ),
                                 ],
                               ),
@@ -3137,17 +3231,22 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
                         Expanded(
                           child: GestureDetector(
                             onTap: () {
+                              final wasPlaying = widget.manager.isDeckPlaying(ActiveDeck.deckB);
                               widget.manager.loadTrackToDeck(ActiveDeck.deckB, track);
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('โหลดเข้า DECK B เรียบร้อย (Standby รอเปิด/ข้ามเพลง)'),
-                                  duration: Duration(seconds: 1),
-                                  backgroundColor: Color(0xFFFF2A85),
+                                SnackBar(
+                                  content: Text(
+                                    wasPlaying
+                                        ? '▶ กำลังเล่นเพลงใหม่บน DECK B...'
+                                        : '✅ เลือกเพลงไว้ที่ DECK B แล้ว (กด PLAY เพื่อเริ่มเล่น)',
+                                  ),
+                                  duration: const Duration(seconds: 1),
+                                  backgroundColor: const Color(0xFFFF2A85),
                                 ),
                               );
                             },
                             child: Container(
-                              height: 24,
+                              height: 25,
                               decoration: BoxDecoration(
                                 color: const Color(0xFFFF2A85),
                                 borderRadius: BorderRadius.circular(4),
@@ -3155,10 +3254,10 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
                               child: const Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Icon(Icons.play_arrow, size: 14, color: Colors.white),
+                                  Icon(Icons.play_arrow, size: 15, color: Colors.white),
                                   Text(
                                     '2',
-                                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11),
+                                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 12),
                                   ),
                                 ],
                               ),
@@ -3179,14 +3278,14 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
                             );
                           },
                           child: Container(
-                            height: 24,
+                            height: 25,
                             padding: const EdgeInsets.symmetric(horizontal: 6),
                             decoration: BoxDecoration(
                               color: Colors.white12,
                               borderRadius: BorderRadius.circular(4),
                               border: Border.all(color: Colors.white24),
                             ),
-                            child: const Icon(Icons.add, size: 14, color: Colors.white),
+                            child: const Icon(Icons.add, size: 15, color: Colors.white),
                           ),
                         ),
                       ],
@@ -3197,27 +3296,35 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
             ),
           ),
 
-          // Title & Artist below thumbnail + Channel & Related tracks action
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-            child: Row(
+          // Title & Artist below thumbnail + Channel & Related tracks action (YouTube / YouTube Music Multi-Line Selectable Style)
+          Container(
+            height: 70,
+            padding: const EdgeInsets.fromLTRB(7, 5, 6, 4),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        track.title,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 1),
-                      InkWell(
+                // Multi-line Selectable Title (2 lines like YouTube Music / YouTube Web)
+                Tooltip(
+                  message: track.title,
+                  waitDuration: const Duration(milliseconds: 500),
+                  child: SelectableText(
+                    track.title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12.2,
+                      fontWeight: FontWeight.bold,
+                      height: 1.22,
+                    ),
+                    maxLines: 2,
+                  ),
+                ),
+
+                // Artist / Channel + Copy Title + Related Tracks buttons
+                Row(
+                  children: [
+                    Expanded(
+                      child: InkWell(
                         onTap: () {
                           ChannelViewDialog.show(
                             context,
@@ -3234,50 +3341,82 @@ class _QueueAndSearchPanelState extends State<QueueAndSearchPanel> {
                               child: Text(
                                 track.artist,
                                 style: TextStyle(
-                                  color: Colors.grey[400],
-                                  fontSize: 8.5,
+                                  color: Colors.grey[300],
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w500,
                                   decoration: TextDecoration.underline,
-                                  decorationColor: Colors.grey[600],
+                                  decorationColor: Colors.grey[500],
                                 ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
                             const SizedBox(width: 2),
-                            Icon(Icons.open_in_new, size: 7.5, color: Colors.grey[500]),
+                            Icon(Icons.open_in_new, size: 9, color: Colors.grey[400]),
                           ],
                         ),
                       ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 4),
-                Tooltip(
-                  message: 'วิดีโอที่เกี่ยวข้อง / เล่นถัดไป (Up Next)',
-                  child: InkWell(
-                    onTap: () {
-                      RelatedTracksDialog.show(
-                        context,
-                        seedTrack: track,
-                        manager: widget.manager,
-                        source: track.source,
-                      );
-                    },
-                    borderRadius: BorderRadius.circular(4),
-                    child: Container(
-                      padding: const EdgeInsets.all(3.5),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF00F2FE).withAlpha(25),
+                    ),
+                    const SizedBox(width: 4),
+                    // Copy Full Video Title button
+                    Tooltip(
+                      message: 'คัดลอกชื่อวิดีโอ: ${track.title}',
+                      child: InkWell(
+                        onTap: () {
+                          Clipboard.setData(ClipboardData(text: track.title));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('📋 คัดลอกชื่อเพลงแล้ว: "${track.title}"'),
+                              duration: const Duration(seconds: 1),
+                              backgroundColor: const Color(0xFF0072FF),
+                            ),
+                          );
+                        },
                         borderRadius: BorderRadius.circular(4),
-                        border: Border.all(color: const Color(0xFF00F2FE).withAlpha(70)),
-                      ),
-                      child: const Icon(
-                        Icons.auto_awesome,
-                        size: 12,
-                        color: Color(0xFF00F2FE),
+                        child: Container(
+                          padding: const EdgeInsets.all(3.0),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withAlpha(18),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: Colors.white24, width: 0.6),
+                          ),
+                          child: const Icon(
+                            Icons.copy,
+                            size: 11,
+                            color: Colors.white70,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
+                    const SizedBox(width: 4),
+                    Tooltip(
+                      message: 'วิดีโอที่เกี่ยวข้อง / เล่นถัดไป (Up Next)',
+                      child: InkWell(
+                        onTap: () {
+                          RelatedTracksDialog.show(
+                            context,
+                            seedTrack: track,
+                            manager: widget.manager,
+                            source: track.source,
+                          );
+                        },
+                        borderRadius: BorderRadius.circular(4),
+                        child: Container(
+                          padding: const EdgeInsets.all(3.0),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF00F2FE).withAlpha(25),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: const Color(0xFF00F2FE).withAlpha(70)),
+                          ),
+                          child: const Icon(
+                            Icons.auto_awesome,
+                            size: 11.5,
+                            color: Color(0xFF00F2FE),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),

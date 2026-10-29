@@ -276,10 +276,27 @@ class _ChannelViewDialogState extends State<ChannelViewDialog> {
                       ),
                     )
                   : _tracks.isEmpty
-                      ? const Center(
-                          child: Text(
-                            'ไม่พบรายการวิดีโอในช่องนี้',
-                            style: TextStyle(color: Colors.white54),
+                      ? Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.video_library_outlined, size: 40, color: Colors.white24),
+                              const SizedBox(height: 8),
+                              const Text(
+                                'ไม่พบรายการวิดีโอในช่องนี้',
+                                style: TextStyle(color: Colors.white54, fontSize: 13),
+                              ),
+                              const SizedBox(height: 10),
+                              ElevatedButton.icon(
+                                onPressed: _fetchChannelDetails,
+                                icon: const Icon(Icons.refresh, size: 14),
+                                label: const Text('ลองโหลดใหม่'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF161A26),
+                                  foregroundColor: Colors.white70,
+                                ),
+                              ),
+                            ],
                           ),
                         )
                       : ListView.separated(
@@ -307,20 +324,26 @@ class _ChannelViewDialogState extends State<ChannelViewDialog> {
                                   ClipRRect(
                                     borderRadius: BorderRadius.circular(6),
                                     child: Container(
-                                      width: 48,
-                                      height: 36,
+                                      width: 52,
+                                      height: 38,
                                       color: const Color(0xFF1E2433),
-                                      child: track.thumbnailUrl != null
-                                          ? Image.network(
-                                              track.thumbnailUrl!,
-                                              fit: BoxFit.cover,
-                                              errorBuilder: (context, error, stackTrace) => const Icon(
-                                                Icons.music_note,
-                                                color: Colors.white24,
-                                                size: 20,
-                                              ),
-                                            )
-                                          : const Icon(Icons.music_note, color: Colors.white24, size: 20),
+                                      child: Image.network(
+                                        track.displayThumbnailUrl,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (context, error, stackTrace) => Image.network(
+                                          'https://i.ytimg.com/vi/${track.videoId}/hqdefault.jpg',
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (context, error, stackTrace) => Image.network(
+                                            'https://i.ytimg.com/vi/${track.videoId}/mqdefault.jpg',
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (context, error, stackTrace) => const Icon(
+                                              Icons.music_note,
+                                              color: Colors.white24,
+                                              size: 20,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
                                     ),
                                   ),
                                   const SizedBox(width: 12),
@@ -330,15 +353,15 @@ class _ChannelViewDialogState extends State<ChannelViewDialog> {
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        Text(
+                                        SelectableText(
                                           track.title,
                                           style: const TextStyle(
                                             color: Colors.white,
-                                            fontSize: 12,
+                                            fontSize: 12.2,
                                             fontWeight: FontWeight.bold,
+                                            height: 1.25,
                                           ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
+                                          maxLines: 2,
                                         ),
                                         const SizedBox(height: 2),
                                         Row(

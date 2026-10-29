@@ -11,22 +11,37 @@ class Track {
   String? videoStreamUrl;
   bool isResolving;
 
+  Duration get duration => Duration(seconds: durationSeconds);
+
   Track({
     required this.videoId,
     required this.title,
     required this.artist,
     required this.durationSeconds,
-    this.thumbnailUrl,
+    String? thumbnailUrl,
     this.source = 'youtube',
     this.channelId,
     this.channelUrl,
     this.streamUrl,
     this.videoStreamUrl,
     this.isResolving = false,
-  });
+  }) : thumbnailUrl = (thumbnailUrl != null && thumbnailUrl.isNotEmpty && thumbnailUrl.startsWith('http'))
+            ? thumbnailUrl
+            : (videoId.isNotEmpty ? 'https://i.ytimg.com/vi/$videoId/hqdefault.jpg' : null);
 
   bool get isYtMusic => source == 'ytmusic';
   bool get isYouTube => source != 'ytmusic';
+
+  String get displayThumbnailUrl {
+    final t = thumbnailUrl?.trim();
+    if (t != null && t.isNotEmpty && t.startsWith('http')) {
+      return t;
+    }
+    if (videoId.isNotEmpty) {
+      return 'https://i.ytimg.com/vi/$videoId/hqdefault.jpg';
+    }
+    return '';
+  }
 
   String get formattedDuration {
     final minutes = durationSeconds ~/ 60;

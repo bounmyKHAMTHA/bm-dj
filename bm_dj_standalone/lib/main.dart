@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -5,11 +6,15 @@ import 'controllers/dj_deck_manager.dart';
 import 'services/api_service.dart';
 import 'services/auth_service.dart';
 import 'widgets/auth_dialog.dart';
+import 'widgets/auth_gate_dialog.dart';
+import 'widgets/package_store_dialog.dart';
+import 'widgets/topup_dialog.dart';
 import 'widgets/ytmusic_connect_dialog.dart';
 import 'widgets/deck_panel.dart';
 import 'widgets/crossfader_center_panel.dart';
 import 'widgets/queue_and_search_panel.dart';
 import 'widgets/dual_waveform_bar.dart';
+import 'widgets/stream_url_selector_dialog.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -58,11 +63,34 @@ class _DJConsoleScreenState extends State<DJConsoleScreen> {
   final FocusNode _focusNode = FocusNode();
   bool _isBackendConnected = true;
   int _mobileTabIndex = 0; // 0: Dual Deck, 1: Deck A, 2: Deck B, 3: Search & Queue
+  File? _customIconFile;
 
   @override
   void initState() {
     super.initState();
+    _customIconFile = _findCustomAppIconFile();
     _checkBackendStatus();
+  }
+
+  File? _findCustomAppIconFile() {
+    try {
+      final candidates = <String>[
+        'app_icon.png',
+        'app_icon.jpg',
+        'logo.png',
+        'assets/app_icon.png',
+        'assets/logo.png',
+        'windows/runner/resources/app_icon.png',
+        r'd:\work bm\dj bm\bm_dj_standalone\app_icon.png',
+        r'd:\work bm\dj bm\bm_dj_standalone\assets\app_icon.png',
+        r'd:\work bm\dj bm\bm_dj_standalone\windows\runner\resources\app_icon.png',
+      ];
+      for (final p in candidates) {
+        final f = File(p);
+        if (f.existsSync()) return f;
+      }
+    } catch (_) {}
+    return null;
   }
 
   Future<void> _checkBackendStatus() async {
@@ -84,6 +112,24 @@ class _DJConsoleScreenState extends State<DJConsoleScreen> {
 
   void _handleKeyEvent(KeyEvent event) {
     if (event is! KeyDownEvent) return;
+
+    // Do NOT trigger DJ hotkeys (Spacebar, S, Tab, Arrows) when typing in Search or any TextField!
+    final primaryFocus = FocusManager.instance.primaryFocus;
+    if (primaryFocus != null && primaryFocus.context != null) {
+      final focusedWidget = primaryFocus.context!.widget;
+      if (focusedWidget is EditableText || focusedWidget is TextField) {
+        return;
+      }
+      bool isInsideTextInput = false;
+      primaryFocus.context!.visitAncestorElements((element) {
+        if (element.widget is EditableText || element.widget is TextField) {
+          isInsideTextInput = true;
+          return false;
+        }
+        return true;
+      });
+      if (isInsideTextInput) return;
+    }
 
     final manager = Provider.of<DJDeckManager>(context, listen: false);
 
@@ -217,6 +263,82 @@ class _DJConsoleScreenState extends State<DJConsoleScreen> {
                     setDialogState(() {});
                   },
                 ),
+                const Divider(color: Colors.white12),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('แสดงปุ่มเลือก URL & วินิจฉัยบนหน้า Deck', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                  subtitle: const Text('ซ่อนไว้เป็นค่าเริ่มต้นเพื่อให้หน้า Deck สะอาดตา เปิดเมื่อต้องการสลับ URL เอง', style: TextStyle(color: Colors.white54, fontSize: 11)),
+                  value: manager.showUrlDiagnosticTools,
+                  activeThumbColor: const Color(0xFFFF9100),
+                  onChanged: (val) {
+                    manager.toggleShowUrlDiagnosticTools(val);
+                    setDialogState(() {});
+                  },
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'เครื่องมือสลับ URL สตรีม & ดูรายงานวินิจฉัย:',
+                  style: TextStyle(color: Color(0xFFFF9100), fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        StreamUrlSelectorDialog.show(
+                          context,
+                          deck: ActiveDeck.deckA,
+                          manager: manager,
+                        );
+                      },
+                      icon: const Icon(Icons.tune, size: 15, color: Color(0xFF00F2FE)),
+                      label: const Text('เลือก URL / วินิจฉัย Deck A', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF00F2FE),
+                        side: const BorderSide(color: Color(0xFF00F2FE)),
+                      ),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        StreamUrlSelectorDialog.show(
+                          context,
+                          deck: ActiveDeck.deckB,
+                          manager: manager,
+                        );
+                      },
+                      icon: const Icon(Icons.tune, size: 15, color: Color(0xFFFF2A85)),
+                      label: const Text('เลือก URL / วินิจฉัย Deck B', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFFFF2A85),
+                        side: const BorderSide(color: Color(0xFFFF2A85)),
+                      ),
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        final report = StreamDiagnosticLogger.instance.buildDiagnosticReport(
+                          videoIdA: manager.trackA?.videoId,
+                          videoIdB: manager.trackB?.videoId,
+                        );
+                        Clipboard.setData(ClipboardData(text: report));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('📋 คัดลอกรายงาน Error & สถานะทั้งหมดลง Clipboard แล้ว!'),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.copy_all, size: 15, color: Colors.black),
+                      label: const Text('คัดลอกรายงาน Error ทั้งหมด', style: TextStyle(color: Colors.black, fontSize: 11.5, fontWeight: FontWeight.bold)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFF9100),
+                      ),
+                    ),
+                  ],
+                ),
               ],
             );
           },
@@ -242,6 +364,71 @@ class _DJConsoleScreenState extends State<DJConsoleScreen> {
     );
   }
 
+  void _showAppIconGuideDialog() {
+    setState(() {
+      _customIconFile = _findCustomAppIconFile();
+    });
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF141824),
+        title: const Row(
+          children: [
+            Icon(Icons.image, color: Color(0xFFFFD700), size: 22),
+            SizedBox(width: 8),
+            Text('วิธีใส่รูปไอคอนแอป & โลโก้ตอนเปิดแอป', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '1. โลโก้มุมซ้ายบนในแอป (รองรับไฟล์ .png / .jpg ทันที):',
+              style: TextStyle(color: Color(0xFFFFD700), fontWeight: FontWeight.bold, fontSize: 13),
+            ),
+            const SizedBox(height: 4),
+            const SelectableText(
+              r'd:\work bm\dj bm\bm_dj_standalone\app_icon.png',
+              style: TextStyle(color: Color(0xFF00F2FE), fontFamily: 'Consolas', fontSize: 12.5, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'นำไฟล์รูปภาพมาวางและตั้งชื่อว่า app_icon.png ไว้ที่โฟลเดอร์ข้างบน แล้วกดปุ่ม "รีเฟรชไอคอน" ด้านล่างได้เลยครับ',
+              style: TextStyle(color: Colors.white70, fontSize: 12),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              '2. ไอคอนไฟล์โปรแกรม Windows (.exe / Taskbar / Desktop):',
+              style: TextStyle(color: Color(0xFFFFD700), fontWeight: FontWeight.bold, fontSize: 13),
+            ),
+            const SizedBox(height: 4),
+            const SelectableText(
+              r'd:\work bm\dj bm\bm_dj_standalone\windows\runner\resources\app_icon.ico',
+              style: TextStyle(color: Color(0xFF00F2FE), fontFamily: 'Consolas', fontSize: 12.5, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'นำไฟล์ไอคอน .ico ไปวางทับไฟล์ app_icon.ico ในโฟลเดอร์ข้างบน เมื่อสั่งรัน/บิลด์แอปใหม่ Windows จะใช้ไอคอนนั้นทันทีครับ',
+              style: TextStyle(color: Colors.white70, fontSize: 12),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              setState(() {
+                _customIconFile = _findCustomAppIconFile();
+              });
+              Navigator.pop(ctx);
+            },
+            child: const Text('🔄 รีเฟรชไอคอน / ปิด', style: TextStyle(color: Color(0xFFFFD700), fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _focusNode.dispose();
@@ -260,48 +447,103 @@ class _DJConsoleScreenState extends State<DJConsoleScreen> {
         appBar: AppBar(
           backgroundColor: const Color(0xFF0D0F14),
           elevation: 0,
-          toolbarHeight: 44,
+          toolbarHeight: 50,
+          titleSpacing: 12,
           title: Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF00F2FE), Color(0xFFFF2A85)],
-                  ),
-                  borderRadius: BorderRadius.circular(6),
+              Tooltip(
+                message: 'คลิกเพื่อดูวิธีใส่รูปไอคอนแอป (app_icon.png / app_icon.ico)',
+                child: InkWell(
+                  onTap: _showAppIconGuideDialog,
+                  borderRadius: BorderRadius.circular(8),
+                  child: _customIconFile != null
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(7),
+                          child: Image.file(
+                            _customIconFile!,
+                            width: 32,
+                            height: 32,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, _, _) => Container(
+                              padding: const EdgeInsets.all(5),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [Color(0xFF00F2FE), Color(0xFFFF2A85)],
+                                ),
+                                borderRadius: BorderRadius.circular(7),
+                              ),
+                              child: const Icon(Icons.album, color: Colors.black, size: 18),
+                            ),
+                          ),
+                        )
+                      : Container(
+                          padding: const EdgeInsets.all(5),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF00F2FE), Color(0xFFFF2A85)],
+                            ),
+                            borderRadius: BorderRadius.circular(7),
+                          ),
+                          child: const Icon(Icons.album, color: Colors.black, size: 18),
+                        ),
                 ),
-                child: const Icon(Icons.album, color: Colors.black, size: 16),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 10),
               const Text(
                 'BM DJ',
                 style: TextStyle(
                   fontWeight: FontWeight.w900,
-                  fontSize: 16,
+                  fontSize: 20,
                   letterSpacing: 1.5,
                   color: Colors.white,
                 ),
               ),
-              const SizedBox(width: 8),
-              const Text(
-                '“ຄຸນນະທຳຄ້ຳຈູນໂລກ ສັດໂລກເປັນໄປຕາມກຳ”',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: Colors.white70,
-                  fontWeight: FontWeight.w500,
+              const SizedBox(width: 12),
+              Flexible(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFD700).withAlpha(26),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: const Color(0xFFFFD700).withAlpha(130), width: 1.1),
+                  ),
+                  child: const FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      '“ຄຸນນະທຳຄ້ຳຈູນໂລກ ສັດໂລກເປັນໄປຕາມກຳ”',
+                      maxLines: 1,
+                      style: TextStyle(
+                        fontSize: 17.5,
+                        color: Color(0xFFFFD700),
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.4,
+                        shadows: [
+                          Shadow(
+                            color: Color(0x99FFD700),
+                            blurRadius: 8,
+                          ),
+                          Shadow(
+                            color: Colors.black,
+                            blurRadius: 4,
+                            offset: Offset(0, 1),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 10),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
                 decoration: BoxDecoration(
                   color: Colors.white.withAlpha((255 * 0.08).round()),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: const Text(
                   'DUAL ENGINE',
-                  style: TextStyle(fontSize: 8, letterSpacing: 0.8, color: Colors.white70),
+                  style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, letterSpacing: 0.8, color: Colors.white70),
                 ),
               ),
             ],
@@ -489,6 +731,98 @@ class _DJConsoleScreenState extends State<DJConsoleScreen> {
               },
             ),
 
+            // Wallet & Subscription Status Badges (shown when logged in)
+            ListenableBuilder(
+              listenable: AuthService.instance,
+              builder: (context, _) {
+                final auth = AuthService.instance;
+                final user = auth.currentUser;
+                if (!auth.isLoggedIn || user == null) return const SizedBox.shrink();
+
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Time Remaining Chip
+                    Tooltip(
+                      message: 'เวลาใช้งานคงเหลือ (นับเฉพาะเวลาเปิดโปรแกรม) • คลิกเพื่อซื้อเวลาเพิ่ม',
+                      child: InkWell(
+                        onTap: () => showDialog(context: context, builder: (_) => const PackageStoreDialog()),
+                        borderRadius: BorderRadius.circular(6),
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF00F2FE).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: const Color(0xFF00F2FE).withValues(alpha: 0.35)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.timer_outlined, color: Color(0xFF00F2FE), size: 13),
+                              const SizedBox(width: 4),
+                              Text(
+                                user.remainingFormatted,
+                                style: const TextStyle(
+                                  color: Color(0xFF00F2FE),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // Wallet Balance Chip
+                    Tooltip(
+                      message: 'ยอดเงินคงเหลือในกระเป๋า • คลิกเพื่อเติมเงินด้วยสลิป/พร้อมเพย์',
+                      child: InkWell(
+                        onTap: () => showDialog(context: context, builder: (_) => const TopUpDialog()),
+                        borderRadius: BorderRadius.circular(6),
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF10B981).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.4)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.account_balance_wallet, color: Color(0xFF10B981), size: 13),
+                              const SizedBox(width: 4),
+                              Text(
+                                user.walletBalanceFormatted,
+                                style: const TextStyle(
+                                  color: Color(0xFF10B981),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(width: 2),
+                              const Icon(Icons.add, color: Color(0xFF10B981), size: 12),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // Store Quick Button
+                    Tooltip(
+                      message: 'ร้านค้าแพ็คเกจเวลาใช้งาน BM DJ',
+                      child: IconButton(
+                        icon: const Icon(Icons.shopping_bag_outlined, color: Color(0xFFFFD700), size: 18),
+                        onPressed: () => showDialog(context: context, builder: (_) => const PackageStoreDialog()),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+
             // YouTube Music Connect Button
             ListenableBuilder(
               listenable: AuthService.instance,
@@ -550,24 +884,43 @@ class _DJConsoleScreenState extends State<DJConsoleScreen> {
             const SizedBox(width: 6),
           ],
         ),
-        body: Column(
+        body: Stack(
           children: [
-            // Full-Width Continuous Dual Waveform Bar (like YouDJ Desktop top strip)
-            DualWaveformBar(manager: manager),
+            Column(
+              children: [
+                // Full-Width Continuous Dual Waveform Bar (like YouDJ Desktop top strip)
+                DualWaveformBar(manager: manager),
 
-            // Main Body Area
-            Expanded(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final isDesktop = constraints.maxWidth >= 950;
+                // Main Body Area
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isDesktop = constraints.maxWidth >= 950;
 
-                  if (isDesktop) {
-                    return _buildDesktopLayout(manager);
-                  } else {
-                    return _buildMobileLayout(manager);
-                  }
-                },
-              ),
+                      if (isDesktop) {
+                        return _buildDesktopLayout(manager);
+                      } else {
+                        return _buildMobileLayout(manager);
+                      }
+                    },
+                  ),
+                ),
+              ],
+            ),
+
+            // Mandatory Login Gate & Expired Gate
+            ListenableBuilder(
+              listenable: AuthService.instance,
+              builder: (context, _) {
+                final auth = AuthService.instance;
+                if (!auth.isLoggedIn) {
+                  return const AuthGateDialog(isExpired: false);
+                }
+                if (!auth.hasActiveSubscription) {
+                  return const AuthGateDialog(isExpired: true);
+                }
+                return const SizedBox.shrink();
+              },
             ),
           ],
         ),

@@ -37,10 +37,10 @@ class DualWaveformBar extends StatelessWidget {
                         halfWidth,
                       ),
                       child: StreamBuilder<Duration>(
-                        stream: manager.deckA.positionStream,
+                        stream: manager.getDeckPositionStream(ActiveDeck.deckA),
                         builder: (context, snapshot) {
-                          final pos = snapshot.data ?? Duration.zero;
-                          final dur = manager.deckA.duration ?? Duration.zero;
+                          final pos = snapshot.data ?? manager.getDeckPosition(ActiveDeck.deckA);
+                          final dur = manager.getDeckDuration(ActiveDeck.deckA);
                           final progress = dur.inMilliseconds > 0
                               ? (pos.inMilliseconds / dur.inMilliseconds).clamp(0.0, 1.0)
                               : 0.0;
@@ -62,7 +62,7 @@ class DualWaveformBar extends StatelessWidget {
                           return CustomPaint(
                             painter: _WaveformPainter(
                               progress: progress,
-                              isPlaying: manager.deckA.playing,
+                              isPlaying: manager.isDeckPlaying(ActiveDeck.deckA),
                               baseColor: const Color(0xFF00F2FE),
                               playedColor: const Color(0xFF0072FF),
                               seed: 101,
@@ -95,10 +95,10 @@ class DualWaveformBar extends StatelessWidget {
                         halfWidth,
                       ),
                       child: StreamBuilder<Duration>(
-                        stream: manager.deckB.positionStream,
+                        stream: manager.getDeckPositionStream(ActiveDeck.deckB),
                         builder: (context, snapshot) {
-                          final pos = snapshot.data ?? Duration.zero;
-                          final dur = manager.deckB.duration ?? Duration.zero;
+                          final pos = snapshot.data ?? manager.getDeckPosition(ActiveDeck.deckB);
+                          final dur = manager.getDeckDuration(ActiveDeck.deckB);
                           final progress = dur.inMilliseconds > 0
                               ? (pos.inMilliseconds / dur.inMilliseconds).clamp(0.0, 1.0)
                               : 0.0;
@@ -120,7 +120,7 @@ class DualWaveformBar extends StatelessWidget {
                           return CustomPaint(
                             painter: _WaveformPainter(
                               progress: progress,
-                              isPlaying: manager.deckB.playing,
+                              isPlaying: manager.isDeckPlaying(ActiveDeck.deckB),
                               baseColor: const Color(0xFFFF2A85),
                               playedColor: const Color(0xFFFF7A00),
                               seed: 202,
@@ -145,9 +145,8 @@ class DualWaveformBar extends StatelessWidget {
   }
 
   void _seekFromPosition(ActiveDeck deck, double dx, double totalWidth) {
-    final player = (deck == ActiveDeck.deckA) ? manager.deckA : manager.deckB;
-    final dur = player.duration;
-    if (dur != null && dur.inMilliseconds > 0 && totalWidth > 0) {
+    final dur = manager.getDeckDuration(deck);
+    if (dur.inMilliseconds > 0 && totalWidth > 0) {
       final ratio = (dx / totalWidth).clamp(0.0, 1.0);
       final newPos = Duration(milliseconds: (dur.inMilliseconds * ratio).toInt());
       manager.seek(deck, newPos);

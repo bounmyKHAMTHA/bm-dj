@@ -38,9 +38,12 @@ class VideoTheaterDialog extends StatefulWidget {
 }
 
 class _VideoTheaterDialogState extends State<VideoTheaterDialog> {
-  VideoPlayerController? _videoController;
+  VideoPlayerController? _ownVideoController;
   bool _isVideoInitialized = false;
   bool _hasError = false;
+
+  VideoPlayerController? get _activeVideoController =>
+      widget.manager.getDeckVideoController(widget.deck) ?? _ownVideoController;
 
   @override
   void initState() {
@@ -49,6 +52,12 @@ class _VideoTheaterDialogState extends State<VideoTheaterDialog> {
   }
 
   Future<void> _initVideo() async {
+    final existing = widget.manager.getDeckVideoController(widget.deck);
+    if (existing != null && existing.value.isInitialized) {
+      setState(() => _isVideoInitialized = true);
+      return;
+    }
+
     final videoUrl = widget.track.videoStreamUrl ?? widget.track.streamUrl;
     if (videoUrl == null || videoUrl.isEmpty) {
       setState(() => _hasError = true);
@@ -57,16 +66,13 @@ class _VideoTheaterDialogState extends State<VideoTheaterDialog> {
 
     try {
       final controller = VideoPlayerController.networkUrl(Uri.parse(videoUrl));
-      _videoController = controller;
+      _ownVideoController = controller;
       await controller.initialize();
-      // Mute the video player's internal audio track to prevent echo/phasing
-      // because the DJ engine (just_audio) handles equal-power mixing and crossfading!
       await controller.setVolume(0.0);
 
-      final player = (widget.deck == ActiveDeck.deckA) ? widget.manager.deckA : widget.manager.deckB;
-      final currentPos = player.position;
+      final currentPos = widget.manager.getDeckPosition(widget.deck);
       await controller.seekTo(currentPos);
-      if (player.playing) {
+      if (widget.manager.isDeckPlaying(widget.deck)) {
         controller.play();
       }
 
@@ -85,7 +91,7 @@ class _VideoTheaterDialogState extends State<VideoTheaterDialog> {
 
   @override
   void dispose() {
-    _videoController?.dispose();
+    _ownVideoController?.dispose();
     super.dispose();
   }
 
@@ -94,7 +100,8 @@ class _VideoTheaterDialogState extends State<VideoTheaterDialog> {
     final isDeckA = widget.deck == ActiveDeck.deckA;
     final accentColor = isDeckA ? const Color(0xFF00F2FE) : const Color(0xFFFF2A85);
     final deckName = isDeckA ? 'DECK A' : 'DECK B';
-    final player = isDeckA ? widget.manager.deckA : widget.manager.deckB;
+    final isPlaying = widget.manager.isDeckPlaying(widget.deck);
+    final vc = _activeVideoController;
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -177,8 +184,8 @@ class _VideoTheaterDialogState extends State<VideoTheaterDialog> {
                     child: Stack(
                       alignment: Alignment.center,
                       children: [
-                        if (_isVideoInitialized && _videoController != null)
-                          VideoPlayer(_videoController!)
+                        if (_isVideoInitialized && vc != null && vc.value.isInitialized)
+                          VideoPlayer(vc)
                         else if (widget.track.thumbnailUrl != null)
                           Image.network(
                             widget.track.thumbnailUrl!,
@@ -197,10 +204,10 @@ class _VideoTheaterDialogState extends State<VideoTheaterDialog> {
                         GestureDetector(
                           onTap: () async {
                             await widget.manager.toggleDeckPlay(widget.deck);
-                            if (player.playing) {
-                              _videoController?.play();
+                            if (widget.manager.isDeckPlaying(widget.deck)) {
+                              _ownVideoController?.play();
                             } else {
-                              _videoController?.pause();
+                              _ownVideoController?.pause();
                             }
                             setState(() {});
                           },
@@ -209,8 +216,8 @@ class _VideoTheaterDialogState extends State<VideoTheaterDialog> {
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: Colors.red.withAlpha(player.playing ? 0 : 220),
-                              boxShadow: player.playing
+                              color: Colors.red.withAlpha(isPlaying ? 0 : 220),
+                              boxShadow: isPlaying
                                   ? null
                                   : [
                                       BoxShadow(
@@ -221,9 +228,9 @@ class _VideoTheaterDialogState extends State<VideoTheaterDialog> {
                                     ],
                             ),
                             child: Icon(
-                              player.playing ? Icons.pause_circle_filled : Icons.play_arrow,
+                              isPlaying ? Icons.pause_circle_filled : Icons.play_arrow,
                               color: Colors.white,
-                              size: player.playing ? 48 : 56,
+                              size: isPlaying ? 48 : 56,
                             ),
                           ),
                         ),
@@ -244,10 +251,10 @@ class _VideoTheaterDialogState extends State<VideoTheaterDialog> {
                   children: [
                     // Position seek bar
                     StreamBuilder<Duration>(
-                      stream: player.positionStream,
+                      stream: widget.manager.getDeckPositionStream(widget.deck),
                       builder: (context, snapshot) {
-                        final pos = snapshot.data ?? Duration.zero;
-                        final dur = player.duration ?? Duration.zero;
+                        final pos = snapshot.data ?? widget.manager.getDeckPosition(widget.deck);
+                        final dur = widget.manager.getDeckDuration(widget.deck);
                         final maxMs = dur.inMilliseconds.toDouble();
                         final curMs = pos.inMilliseconds.toDouble().clamp(0.0, maxMs > 0 ? maxMs : 1.0);
 
@@ -269,7 +276,7 @@ class _VideoTheaterDialogState extends State<VideoTheaterDialog> {
                                   onChanged: (val) {
                                     final seekPos = Duration(milliseconds: val.toInt());
                                     widget.manager.seek(widget.deck, seekPos);
-                                    _videoController?.seekTo(seekPos);
+                                    _ownVideoController?.seekTo(seekPos);
                                   },
                                 ),
                               ),
@@ -289,7 +296,7 @@ class _VideoTheaterDialogState extends State<VideoTheaterDialog> {
                         OutlinedButton(
                           onPressed: () {
                             widget.manager.seek(widget.deck, Duration.zero);
-                            _videoController?.seekTo(Duration.zero);
+                            _ownVideoController?.seekTo(Duration.zero);
                           },
                           style: OutlinedButton.styleFrom(
                             foregroundColor: Colors.white,
@@ -304,15 +311,15 @@ class _VideoTheaterDialogState extends State<VideoTheaterDialog> {
                         ElevatedButton.icon(
                           onPressed: () async {
                             await widget.manager.toggleDeckPlay(widget.deck);
-                            if (player.playing) {
-                              _videoController?.play();
+                            if (widget.manager.isDeckPlaying(widget.deck)) {
+                              _ownVideoController?.play();
                             } else {
-                              _videoController?.pause();
+                              _ownVideoController?.pause();
                             }
                             setState(() {});
                           },
-                          icon: Icon(player.playing ? Icons.pause : Icons.play_arrow, size: 16),
-                          label: Text(player.playing ? 'PAUSE' : 'PLAY'),
+                          icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow, size: 16),
+                          label: Text(isPlaying ? 'PAUSE' : 'PLAY'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: accentColor,
                             foregroundColor: Colors.black,

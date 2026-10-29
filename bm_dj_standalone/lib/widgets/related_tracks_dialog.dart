@@ -160,15 +160,15 @@ class _RelatedTracksDialogState extends State<RelatedTracksDialog> {
                           ],
                         ),
                         const SizedBox(height: 2),
-                        Text(
+                        SelectableText(
                           widget.seedTrack.title,
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 13,
                             fontWeight: FontWeight.bold,
+                            height: 1.25,
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                          maxLines: 2,
                         ),
                         Text(
                           widget.seedTrack.artist,
@@ -259,20 +259,26 @@ class _RelatedTracksDialogState extends State<RelatedTracksDialog> {
                                   ClipRRect(
                                     borderRadius: BorderRadius.circular(6),
                                     child: Container(
-                                      width: 48,
-                                      height: 36,
+                                      width: 52,
+                                      height: 38,
                                       color: const Color(0xFF1E2433),
-                                      child: track.thumbnailUrl != null
-                                          ? Image.network(
-                                              track.thumbnailUrl!,
-                                              fit: BoxFit.cover,
-                                              errorBuilder: (context, error, stackTrace) => const Icon(
-                                                Icons.music_note,
-                                                color: Colors.white24,
-                                                size: 20,
-                                              ),
-                                            )
-                                          : const Icon(Icons.music_note, color: Colors.white24, size: 20),
+                                      child: Image.network(
+                                        track.displayThumbnailUrl,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (context, error, stackTrace) => Image.network(
+                                          'https://i.ytimg.com/vi/${track.videoId}/hqdefault.jpg',
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (context, error, stackTrace) => Image.network(
+                                            'https://i.ytimg.com/vi/${track.videoId}/mqdefault.jpg',
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (context, error, stackTrace) => const Icon(
+                                              Icons.music_note,
+                                              color: Colors.white24,
+                                              size: 20,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
                                     ),
                                   ),
                                   const SizedBox(width: 12),
@@ -282,15 +288,15 @@ class _RelatedTracksDialogState extends State<RelatedTracksDialog> {
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        Text(
+                                        SelectableText(
                                           track.title,
                                           style: const TextStyle(
                                             color: Colors.white,
-                                            fontSize: 12,
+                                            fontSize: 12.2,
                                             fontWeight: FontWeight.bold,
+                                            height: 1.25,
                                           ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
+                                          maxLines: 2,
                                         ),
                                         const SizedBox(height: 2),
                                         Row(

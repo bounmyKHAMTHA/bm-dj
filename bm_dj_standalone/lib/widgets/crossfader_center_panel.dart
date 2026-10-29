@@ -51,24 +51,24 @@ class CrossfaderCenterPanel extends StatelessWidget {
                       '${(manager.isDeckAPlaying ? manager.bpmDeckA : manager.bpmDeckB).toStringAsFixed(1)} BPM',
                       style: const TextStyle(
                         color: Colors.amberAccent,
-                        fontSize: 8.5,
+                        fontSize: 10.5,
                         fontWeight: FontWeight.bold,
                         fontFamily: 'monospace',
                       ),
                     ),
                   ),
-                  const SizedBox(width: 3),
+                  const SizedBox(width: 4),
                   InkWell(
                     onTap: () => manager.tapTempo(manager.isDeckAPlaying ? ActiveDeck.deckA : ActiveDeck.deckB),
                     borderRadius: BorderRadius.circular(4),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1.5),
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                       decoration: BoxDecoration(
                         color: Colors.amber.withAlpha(30),
                         borderRadius: BorderRadius.circular(4),
                         border: Border.all(color: Colors.amber.withAlpha(120), width: 0.8),
                       ),
-                      child: const Text('TAP', style: TextStyle(color: Colors.amberAccent, fontSize: 7.5, fontWeight: FontWeight.bold)),
+                      child: const Text('TAP', style: TextStyle(color: Colors.amberAccent, fontSize: 9.5, fontWeight: FontWeight.bold)),
                     ),
                   ),
                 ],
@@ -87,7 +87,7 @@ class CrossfaderCenterPanel extends StatelessWidget {
                       onTap: () => manager.toggleAutoQueue(),
                       borderRadius: BorderRadius.circular(4),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
                           color: manager.autoQueueEnabled
                               ? const Color(0xFFFF0033).withAlpha(50)
@@ -105,7 +105,7 @@ class CrossfaderCenterPanel extends StatelessWidget {
                           children: [
                             Icon(
                               Icons.auto_awesome,
-                              size: 9,
+                              size: 11,
                               color: manager.autoQueueEnabled
                                   ? const Color(0xFFFF4066)
                                   : Colors.white38,
@@ -114,8 +114,8 @@ class CrossfaderCenterPanel extends StatelessWidget {
                             Text(
                               'AUTO-DJ',
                               style: TextStyle(
-                                color: manager.autoQueueEnabled ? Colors.white : Colors.white38,
-                                fontSize: 8,
+                                color: manager.autoQueueEnabled ? Colors.white : Colors.white54,
+                                fontSize: 10.0,
                                 fontWeight: FontWeight.bold,
                                 letterSpacing: 0.5,
                               ),
@@ -134,7 +134,7 @@ class CrossfaderCenterPanel extends StatelessWidget {
                       onTap: () => manager.syncDecks(),
                       borderRadius: BorderRadius.circular(4),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(colors: [Color(0xFF0072FF), Color(0xFF00F2FE)]),
                           borderRadius: BorderRadius.circular(4),
@@ -145,11 +145,11 @@ class CrossfaderCenterPanel extends StatelessWidget {
                         child: const Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.sync, size: 9, color: Colors.black),
-                            SizedBox(width: 2),
+                            Icon(Icons.sync, size: 11, color: Colors.black),
+                            SizedBox(width: 3),
                             Text(
                               'SYNC',
-                              style: TextStyle(color: Colors.black, fontSize: 8.5, fontWeight: FontWeight.w900),
+                              style: TextStyle(color: Colors.black, fontSize: 10.0, fontWeight: FontWeight.w900),
                             ),
                           ],
                         ),
@@ -170,7 +170,7 @@ class CrossfaderCenterPanel extends StatelessWidget {
               // Deck A Volume Fader
               Column(
                 children: [
-                  Text('VOL A ${(manager.volumeGainA * 100).toInt()}%', style: const TextStyle(color: colorA, fontSize: 8.0, fontWeight: FontWeight.bold)),
+                  Text('VOL A ${(manager.volumeGainA * 100).toInt()}%', style: const TextStyle(color: colorA, fontSize: 10.0, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 1),
                   SizedBox(
                     height: 44,
@@ -207,16 +207,16 @@ class CrossfaderCenterPanel extends StatelessWidget {
                       IconButton.filled(
                         tooltip: 'Master Play/Pause [Space]',
                         onPressed: () => manager.toggleMasterPlay(),
-                        iconSize: 16,
+                        iconSize: 18,
                         icon: Icon(
-                          (manager.deckA.playing || manager.deckB.playing)
+                          (manager.isDeckPlaying(ActiveDeck.deckA) || manager.isDeckPlaying(ActiveDeck.deckB))
                               ? Icons.pause
                               : Icons.play_arrow,
                         ),
                         style: IconButton.styleFrom(
                           backgroundColor: Colors.white12,
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.all(4),
+                          padding: const EdgeInsets.all(5),
                         ),
                       ),
                       const SizedBox(width: 6),
@@ -224,35 +224,35 @@ class CrossfaderCenterPanel extends StatelessWidget {
                       // PLAY A+B Button (Like YouDJ)
                       ElevatedButton.icon(
                         onPressed: () => manager.playBoth(),
-                        icon: const Icon(Icons.compare_arrows, size: 11),
-                        label: const Text('PLAY A+B', style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.bold)),
+                        icon: const Icon(Icons.compare_arrows, size: 13),
+                        label: const Text('PLAY A+B', style: TextStyle(fontSize: 10.0, fontWeight: FontWeight.bold)),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF202738),
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          minimumSize: const Size(0, 22),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          minimumSize: const Size(0, 24),
                         ),
                       ),
                     ],
                   ),
 
-                  const SizedBox(height: 3),
+                  const SizedBox(height: 4),
 
                   // Smooth Skip Button
                   SizedBox(
-                    height: 21,
+                    height: 24,
                     child: ElevatedButton.icon(
                       onPressed: manager.isTransitioning ? null : () => manager.executeSmoothSkip(),
-                      icon: const Icon(Icons.fast_forward, size: 11, color: Colors.white),
+                      icon: const Icon(Icons.fast_forward, size: 13, color: Colors.white),
                       label: Text(
                         manager.isTransitioning
                             ? 'FADING...'
                             : 'SMOOTH SKIP (${manager.transitionDurationSeconds}s)',
-                        style: const TextStyle(color: Colors.white, fontSize: 8.5, fontWeight: FontWeight.bold),
+                        style: const TextStyle(color: Colors.white, fontSize: 10.0, fontWeight: FontWeight.bold),
                       ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF0072FF),
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                       ),
                     ),
@@ -263,7 +263,7 @@ class CrossfaderCenterPanel extends StatelessWidget {
               // Deck B Volume Fader
               Column(
                 children: [
-                  Text('VOL B ${(manager.volumeGainB * 100).toInt()}%', style: const TextStyle(color: colorB, fontSize: 8.0, fontWeight: FontWeight.bold)),
+                  Text('VOL B ${(manager.volumeGainB * 100).toInt()}%', style: const TextStyle(color: colorB, fontSize: 10.0, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 1),
                   SizedBox(
                     height: 44,
@@ -428,13 +428,13 @@ class CrossfaderCenterPanel extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                 decoration: BoxDecoration(
                   color: colorA.withAlpha(35),
                   borderRadius: BorderRadius.circular(4),
                   border: Border.all(color: colorA.withAlpha(120), width: 1),
                 ),
-                child: const Text('DECK A', style: TextStyle(color: colorA, fontWeight: FontWeight.bold, fontSize: 9.5)),
+                child: const Text('DECK A', style: TextStyle(color: colorA, fontWeight: FontWeight.bold, fontSize: 11.0)),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -445,17 +445,17 @@ class CrossfaderCenterPanel extends StatelessWidget {
                 ),
                 child: Text(
                   'CROSSFADER ${(manager.crossfadePosition * 100).toInt()}%',
-                  style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 0.8),
+                  style: const TextStyle(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.bold, letterSpacing: 0.8),
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                 decoration: BoxDecoration(
                   color: colorB.withAlpha(35),
                   borderRadius: BorderRadius.circular(4),
                   border: Border.all(color: colorB.withAlpha(120), width: 1),
                 ),
-                child: const Text('DECK B', style: TextStyle(color: colorB, fontWeight: FontWeight.bold, fontSize: 9.5)),
+                child: const Text('DECK B', style: TextStyle(color: colorB, fontWeight: FontWeight.bold, fontSize: 11.0)),
               ),
             ],
           ),

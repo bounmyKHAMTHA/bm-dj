@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import 'ytmusic_connect_dialog.dart';
+import 'package_store_dialog.dart';
+import 'topup_dialog.dart';
 
 class AuthDialog extends StatefulWidget {
   const AuthDialog({super.key});
@@ -212,6 +214,83 @@ class _AuthDialogState extends State<AuthDialog> with SingleTickerProviderStateM
         const SizedBox(height: 16),
         const Divider(color: Colors.white12),
         const SizedBox(height: 12),
+
+        // Billing & Subscription Info
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFF141824),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFF232A3B)),
+          ),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('เวลาใช้งานคงเหลือ (เปิดแอปเท่านั้น):', style: TextStyle(color: Colors.white60, fontSize: 11)),
+                        const SizedBox(height: 2),
+                        Text(
+                          user.remainingFormatted,
+                          style: const TextStyle(color: Color(0xFF00F2FE), fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                      ],
+                    ),
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      showDialog(context: context, builder: (_) => const PackageStoreDialog());
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF00F2FE),
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      minimumSize: const Size(0, 30),
+                    ),
+                    child: const Text('ซื้อเวลาเพิ่ม', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
+              const Divider(color: Color(0xFF1F2636), height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('ยอดเงินในกระเป๋า BM DJ Wallet:', style: TextStyle(color: Colors.white60, fontSize: 11)),
+                        const SizedBox(height: 2),
+                        Text(
+                          user.walletBalanceFormatted,
+                          style: const TextStyle(color: Color(0xFF10B981), fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                      ],
+                    ),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      showDialog(context: context, builder: (_) => const TopUpDialog());
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF10B981),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      minimumSize: const Size(0, 30),
+                    ),
+                    icon: const Icon(Icons.add, size: 14),
+                    label: const Text('เติมเงิน', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
 
         // Memory stats badges
         const Text(

@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:bm_dj/models/user_account.dart';
-import 'package:bm_dj/services/auth_service.dart';
+import 'package:bm_dj_standalone/models/user_account.dart';
+import 'package:bm_dj_standalone/services/auth_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

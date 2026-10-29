@@ -1,8 +1,8 @@
 import 'dart:math' as math;
 import 'package:flutter_test/flutter_test.dart';
-import 'package:bm_dj/controllers/dj_deck_manager.dart';
-import 'package:bm_dj/models/track.dart';
-import 'package:bm_dj/services/api_service.dart';
+import 'package:bm_dj_standalone/controllers/dj_deck_manager.dart';
+import 'package:bm_dj_standalone/models/track.dart';
+import 'package:bm_dj_standalone/services/api_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
